@@ -1,0 +1,87 @@
+name: Build ETH II Wallet
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Windows installer
+        run: npm run build:win
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ETH-II-Wallet-Windows
+          path: dist/*.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Linux AppImage
+        run: npm run build:linux
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ETH-II-Wallet-Linux
+          path: dist/*.AppImage
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: ETH-II-Wallet-Windows
+          path: release/
+      - name: Download Linux build
+        uses: actions/download-artifact@v4
+        with:
+          name: ETH-II-Wallet-Linux
+          path: release/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ETH II Wallet ${{ github.ref_name }}
+          body: |
+            ## ETH II Wallet ${{ github.ref_name }}
+
+            ### Downloads
+            - **Windows**: ETH II Wallet Setup *.exe
+            - **Linux**: ETH II Wallet-*.AppImage
+
+            ### Installation
+            1. Download the installer for your platform
+            2. Run it -- the ETH II node is bundled, no extra downloads needed
+            3. Launch from your desktop shortcut
+
+            ### Network Info
+            Chain ID: 20482 | Block Reward: 5 ETHII | Consensus: Ethash PoW
+            Public RPC: https://ethii.net/rpc
+            Explorer: https://ethii.net/explorer.html
+          files: release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

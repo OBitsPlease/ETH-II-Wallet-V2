@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;" />
+  <title>ETHII Wallet</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Custom title bar -->
+  <div class="titlebar">
+    <div class="titlebar-logo">
+      <img src="../assets/ethii-logo.png" class="logo-diamond-img" alt="ETHII">
+      <span class="logo-text">ETH <span class="logo-text-ii">II</span> <span class="logo-sub">Wallet</span></span>
+    </div>
+    <span id="app-version" style="font-size:0.72rem;color:rgba(255,255,255,0.75);margin:0 auto 0 12px;letter-spacing:0.08em;font-family:monospace;font-weight:700;">v2.1.6</span>
+    <div class="titlebar-controls">
+      <button class="tb-btn" id="btn-min" title="Minimize">&#8722;</button>
+      <button class="tb-btn" id="btn-max" title="Maximize">&#9723;</button>
+      <button class="tb-btn close" id="btn-close" title="Close">&#10005;</button>
+    </div>
+  </div>
+
+  <!-- ===== SETUP SCREEN ===== -->
+  <div id="screen-setup" class="screen active">
+    <div class="setup-hero">
+      <div class="hero-diamond"><img src="../assets/ethii-logo.png" class="hero-logo-img" alt="ETHII"></div>
+      <h1 class="hero-title">ETH <span class="hero-title-ii">II</span></h1>
+      <p class="hero-sub"><span class="hero-sub-highlight">ETH II</span> <span class="hero-sub-dot">✦</span> PoW FOREVER <span class="hero-sub-dot">✦</span> Crypto 2.0</p>
+    </div>
+    <div class="setup-cards">
+      <div class="card glow-blue" id="card-new">
+        <div class="card-icon">✦</div>
+        <h3>New Wallet</h3>
+        <p>Generate a brand new ETHII wallet with a secure private key.</p>
+        <button class="btn btn-primary">Create Wallet</button>
+      </div>
+      <div class="card glow-purple" id="card-unlock">
+        <div class="card-icon">🔓</div>
+        <h3>Unlock Wallet</h3>
+        <p>Unlock your existing ETHII wallet using your password.</p>
+        <button class="btn btn-secondary">Unlock</button>
+      </div>
+      <div class="card glow-cyan" id="card-import">
+        <div class="card-icon">⬇</div>
+        <h3>Import Wallet</h3>
+        <p>Import an existing wallet using a private key.</p>
+        <button class="btn btn-outline">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== NEW WALLET SCREEN ===== -->
+  <div id="screen-new-wallet" class="screen">
+    <div class="panel">
+      <button class="btn-back" id="back-from-new">← Back</button>
+      <h2 class="panel-title">Create New Wallet</h2>
+      <div id="new-wallet-step1">
+        <p class="hint">Your wallet keys will be generated securely. Set a strong password to encrypt your wallet file.</p>
+        <div class="form-group">
+          <label>Wallet Password</label>
+          <input type="password" id="new-password" placeholder="Min 8 characters" />
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" id="new-password-confirm" placeholder="Repeat password" />
+        </div>
+        <button class="btn btn-primary full-width" id="btn-generate">Generate Wallet</button>
+      </div>
+      <div id="new-wallet-step2" class="hidden">
+        <div class="success-banner">✔ Wallet Created Successfully!</div>
+        <div class="form-group">
+          <label>Your ETHII Address</label>
+          <div class="copy-row">
+            <input type="text" id="new-address-display" readonly />
+            <button class="btn-copy" data-target="new-address-display">⎘</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Private Key <span class="warn-label">⚠ Never share this!</span></label>
+          <div class="copy-row">
+            <input type="password" id="new-privkey-display" readonly />
+            <button class="btn-copy" data-target="new-privkey-display">⎘</button>
+            <button class="btn-reveal" data-target="new-privkey-display">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Recovery Phrase <span class="warn-label">⚠ Write this down!</span></label>
+          <div class="mnemonic-box" id="new-mnemonic-display"></div>
+        </div>
+        <button class="btn btn-primary full-width" id="btn-go-dashboard">Open Wallet →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== UNLOCK SCREEN ===== -->
+  <div id="screen-unlock" class="screen">
+    <div class="panel narrow">
+      <button class="btn-back" id="back-from-unlock">← Back</button>
+      <div class="hero-diamond small"><img src="../assets/ethii-logo.png" class="hero-logo-img small" alt="ETHII"></div>
+      <h2 class="panel-title center">Unlock ETHII Wallet</h2>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="unlock-password" placeholder="Enter your wallet password" />
+      </div>
+      <div id="unlock-error" class="error-msg hidden"></div>
+      <button class="btn btn-primary full-width" id="btn-unlock">Unlock →</button>
+    </div>
+  </div>
+
+  <!-- ===== IMPORT SCREEN ===== -->
+  <div id="screen-import" class="screen">
+    <div class="panel narrow">
+      <button class="btn-back" id="back-from-import">← Back</button>
+      <h2 class="panel-title">Import Wallet</h2>
+      <div class="form-group">
+        <label>Private Key</label>
+        <input type="password" id="import-privkey" placeholder="0x..." />
+      </div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" id="import-password" placeholder="Set a password to encrypt" />
+      </div>
+      <div id="import-error" class="error-msg hidden"></div>
+      <button class="btn btn-primary full-width" id="btn-import">Import Wallet</button>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD ===== -->
+  <div id="screen-dashboard" class="screen">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <img src="../assets/ethii-logo.png" class="logo-diamond-img" alt="ETHII">
+        <span>ETHII</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-view="view-wallet">
+          <span class="nav-icon">◈</span> Wallet
+        </a>
+        <a class="nav-item" data-view="view-send">
+          <span class="nav-icon">↑</span> Send
+        </a>
+        <a class="nav-item" data-view="view-receive">
+          <span class="nav-icon">↓</span> Receive
+        </a>
+        <a class="nav-item" data-view="view-history">
+          <span class="nav-icon">☰</span> History
+        </a>
+        <a class="nav-item" data-view="view-node">
+          <span class="nav-icon">⬡</span> Node
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="btn-lock" id="btn-lock">🔒 Lock</button>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="dashboard-content">
+
+      <!-- Wallet view -->
+      <div id="view-wallet" class="dash-view active">
+        <div class="balance-card">
+          <div class="balance-label">Total Balance</div>
+          <div class="balance-amount">
+            <span id="balance-value">—</span>
+            <span class="balance-unit">ETHII</span>
+          </div>
+          <div class="balance-address-row">
+            <span id="dash-address" class="mono small">—</span>
+            <button class="btn-copy-sm" id="copy-address">⎘</button>
+          </div>
+          <button class="btn-refresh" id="btn-refresh-balance">⟳ Refresh</button>
+        </div>
+        <div class="actions-row">
+          <button class="btn btn-primary" data-view="view-send">↑ Send</button>
+          <button class="btn btn-secondary" data-view="view-receive">↓ Receive</button>
+          <button class="btn btn-outline" id="btn-export">⬇ Export Keystore</button>
+        </div>
+        <div class="section-title">Network Info</div>
+        <div class="info-grid">
+          <div class="info-chip">Chain ID <span class="chip-val">20482</span></div>
+          <div class="info-chip">Block Time <span class="chip-val">~10s</span></div>
+          <div class="info-chip">Reward <span class="chip-val">5 ETHII</span></div>
+          <div class="info-chip">Gas Price <span class="chip-val">0.5 gwei</span></div>
+          <div class="info-chip">Consensus <span class="chip-val">Ethash PoW</span></div>
+        </div>
+      </div>
+
+      <!-- Send view -->
+      <div id="view-send" class="dash-view">
+        <h2 class="view-title">Send ETHII</h2>
+        <div class="form-group">
+          <label>Recipient Address</label>
+          <input type="text" id="send-to" placeholder="0x..." class="mono" />
+        </div>
+        <div class="form-group">
+          <label>Amount (ETHII)</label>
+          <input type="number" id="send-amount" placeholder="0.0" min="0" step="0.001" />
+        </div>
+        <div class="form-group">
+          <label>Gas Price (gwei) <span class="hint-label">default: 0.5</span></label>
+          <input type="number" id="send-gasprice" placeholder="0.5" value="0.5" min="0.1" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label>Wallet Password (to sign)</label>
+          <input type="password" id="send-password" placeholder="Your wallet password" />
+        </div>
+        <div id="send-status" class="status-msg hidden"></div>
+        <button class="btn btn-primary full-width" id="btn-send">Send Transaction →</button>
+      </div>
+
+      <!-- Receive view -->
+      <div id="view-receive" class="dash-view">
+        <h2 class="view-title">Receive ETHII</h2>
+        <p class="hint">Share your address to receive ETHII from other wallets or mining pools.</p>
+        <div class="qr-placeholder" id="qr-box">
+          <div class="qr-inner">
+            <div class="qr-address" id="receive-address">—</div>
+          </div>
+        </div>
+        <div class="copy-row centered">
+          <input type="text" id="receive-address-input" readonly class="mono" />
+          <button class="btn-copy" data-target="receive-address-input">⎘ Copy</button>
+        </div>
+        <div class="rpc-info">
+          <div class="section-title">Add to MetaMask / External Wallet</div>
+          <div class="info-grid">
+            <div class="info-chip">Network Name <span class="chip-val">ETHII</span></div>
+            <div class="info-chip">RPC URL <span class="chip-val mono" id="metamask-rpc-url">https://ethii.net/rpc</span></div>
+            <div class="info-chip">Chain ID <span class="chip-val">20482</span></div>
+            <div class="info-chip">Symbol <span class="chip-val">ETHII</span></div>
+          </div>
+          <p class="hint" id="metamask-rpc-note">
+            <strong>Recommended:</strong> Use the public endpoint above for MetaMask and external wallets.<br>
+            <strong>Local node (optional):</strong> Use <code>http://localhost:8545</code> only if MetaMask is running on the same machine as your node.
+          </p>
+        </div>
+      </div>
+
+      <!-- History view -->
+      <div id="view-history" class="dash-view">
+        <h2 class="view-title">Transaction History</h2>
+        <div class="history-controls">
+          <button class="btn btn-secondary history-filter active" data-filter="all">All</button>
+          <button class="btn btn-secondary history-filter" data-filter="in">Incoming</button>
+          <button class="btn btn-secondary history-filter" data-filter="out">Outgoing</button>
+          <button class="btn btn-outline" id="btn-refresh-history">⟳ Refresh</button>
+        </div>
+        <div id="history-status" class="status-msg loading hidden"></div>
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Counterparty</th>
+                <th>Block</th>
+                <th>Hash</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody">
+              <tr><td colspan="5" class="mono small">No transaction history loaded yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Node view -->
+      <div id="view-node" class="dash-view">
+        <h2 class="view-title">Node Status</h2>
+        <div id="node-status-card" class="node-card">
+          <div class="node-indicator" id="node-indicator"></div>
+          <div id="node-status-text">Checking...</div>
+        </div>
+        <div class="info-grid" id="node-info-grid">
+          <div class="info-chip">Local Block <span class="chip-val" id="node-block">—</span></div>
+          <div class="info-chip">Network Block <span class="chip-val" id="node-network-block">—</span></div>
+          <div class="info-chip">Network Peers <span class="chip-val" id="node-network-peers">—</span></div>
+          <div class="info-chip">Sync Lag <span class="chip-val" id="node-sync-lag">—</span></div>
+          <div class="info-chip">Peers <span class="chip-val" id="node-peers">—</span></div>
+          <div class="info-chip">Node RPC <span class="chip-val mono">localhost:8545 (local control)</span></div>
+        </div>
+        <div class="sync-progress" id="node-sync-progress">
+          <div class="sync-progress-label" id="node-sync-progress-label">Checking sync status...</div>
+          <div class="sync-progress-bar">
+            <div class="sync-progress-fill" id="node-sync-progress-fill" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="section-title">Start Node Command</div>
+        <div class="code-block">ethii.exe --datadir ".\data" --networkid 20482 --http --http.port 8545</div>
+        <button class="btn btn-outline" id="btn-refresh-node">⟳ Refresh Status</button>
+        <button class="btn btn-danger" id="btn-shutdown-node" title="Gracefully stop the node and stratum, then close the wallet">⏻ Shutdown Node &amp; Wallet</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none">
+  <defs>
+    <filter id="glow-purple" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur1"/>
+      <feGaussianBlur stdDeviation="18" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glow-cyan" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glow-II" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="blur1"/>
+      <feGaussianBlur stdDeviation="14" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <linearGradient id="g-top-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#3A2068"/>
+    </linearGradient>
+    <linearGradient id="g-top-right" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#627EEA"/>
+      <stop offset="100%" stop-color="#2A1F60"/>
+    </linearGradient>
+    <linearGradient id="g-bot-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4B2EA0"/>
+      <stop offset="100%" stop-color="#0D0D1A"/>
+    </linearGradient>
+    <linearGradient id="g-bot-right" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00D4FF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#1A1040"/>
+    </linearGradient>
+    <linearGradient id="g-waist" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#00D4FF"/>
+      <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Diamond: top=100,15  left=28,148  right=172,148  bottom=100,268  spine=100,118/158 -->
+
+  <!-- Top-left face -->
+  <polygon points="100,15 28,148 100,118"
+           fill="url(#g-top-left)" filter="url(#glow-purple)" opacity="0.95"/>
+  <!-- Top-right face -->
+  <polygon points="100,15 172,148 100,118"
+           fill="url(#g-top-right)" filter="url(#glow-purple)" opacity="0.9"/>
+
+  <!-- Waist highlight band -->
+  <polygon points="28,148 100,165 172,148 100,132"
+           fill="url(#g-waist)" filter="url(#glow-cyan)" opacity="0.9"/>
+
+  <!-- Bottom-left face -->
+  <polygon points="28,148 100,268 100,165"
+           fill="url(#g-bot-left)" opacity="0.92"/>
+  <!-- Bottom-right face -->
+  <polygon points="172,148 100,268 100,165"
+           fill="url(#g-bot-right)" opacity="0.88"/>
+
+  <!-- Edge highlights -->
+  <line x1="100" y1="15"  x2="28"  y2="148" stroke="#8B5CF6" stroke-width="0.6" opacity="0.5"/>
+  <line x1="100" y1="15"  x2="172" y2="148" stroke="#627EEA" stroke-width="0.6" opacity="0.5"/>
+  <line x1="28"  y1="148" x2="100" y2="268" stroke="#5B3FD4" stroke-width="0.5" opacity="0.35"/>
+  <line x1="172" y1="148" x2="100" y2="268" stroke="#00D4FF" stroke-width="0.5" opacity="0.35"/>
+
+  <!-- II centered over diamond — outer glow -->
+  <text x="100" y="175"
+        text-anchor="middle"
+        font-family="'Georgia','Times New Roman',serif"
+        font-size="100" font-weight="700"
+        fill="#00D4FF" opacity="0.15"
+        filter="url(#glow-II)"
+        letter-spacing="-6">II</text>
+
+  <!-- II centered over diamond — main -->
+  <text x="100" y="175"
+        text-anchor="middle"
+        font-family="'Georgia','Times New Roman',serif"
+        font-size="100" font-weight="700"
+        fill="#00D4FF" opacity="0.82"
+        filter="url(#glow-II)"
+        letter-spacing="-6">II</text>
+
+  <!-- II purple stroke outline for depth -->
+  <text x="100" y="175"
+        text-anchor="middle"
+        font-family="'Georgia','Times New Roman',serif"
+        font-size="100" font-weight="700"
+        fill="none"
+        stroke="#8B5CF6" stroke-width="1.5"
+        opacity="0.5"
+        letter-spacing="-6">II</text>
+</svg>
+
+  <defs>
+    <!-- Purple glow filter for the diamond -->
+    <filter id="glow-purple" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur1"/>
+      <feGaussianBlur stdDeviation="16" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Blue glow filter for II text -->
+    <filter id="glow-blue" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="blur1"/>
+      <feGaussianBlur stdDeviation="12" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Cyan inner glow -->
+    <filter id="glow-cyan" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Diamond gradient: purple to blue -->
+    <linearGradient id="grad-top-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#4B3A8A"/>
+    </linearGradient>
+    <linearGradient id="grad-top-right" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#627EEA"/>
+      <stop offset="100%" stop-color="#3A2E6E"/>
+    </linearGradient>
+    <linearGradient id="grad-bot-left" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#5B3FD4"/>
+      <stop offset="100%" stop-color="#2A1F5C"/>
+    </linearGradient>
+    <linearGradient id="grad-bot-right" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#00D4FF" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#3A2E6E"/>
+    </linearGradient>
+    <linearGradient id="grad-mid" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#00D4FF" stop-opacity="0.7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Diamond crystal shape ── -->
+  <!-- Centred horizontally in the left ~140px of the 220px canvas -->
+
+  <!-- Top-left face -->
+  <polygon points="70,20 20,140 70,115"
+           fill="url(#grad-top-left)" filter="url(#glow-purple)" opacity="0.95"/>
+  <!-- Top-right face -->
+  <polygon points="70,20 120,140 70,115"
+           fill="url(#grad-top-right)" filter="url(#glow-purple)" opacity="0.9"/>
+
+  <!-- Waist gap / highlight line -->
+  <polygon points="20,140 70,158 120,140 70,125"
+           fill="url(#grad-mid)" filter="url(#glow-cyan)" opacity="0.85"/>
+
+  <!-- Bottom-left face -->
+  <polygon points="20,140 70,260 70,158"
+           fill="url(#grad-bot-left)" opacity="0.9"/>
+  <!-- Bottom-right face -->
+  <polygon points="120,140 70,260 70,158"
+           fill="url(#grad-bot-right)" opacity="0.85"/>
+
+  <!-- Subtle edge highlights -->
+  <line x1="70" y1="20" x2="20" y2="140" stroke="#8B5CF6" stroke-width="0.5" opacity="0.6"/>
+  <line x1="70" y1="20" x2="120" y2="140" stroke="#627EEA" stroke-width="0.5" opacity="0.6"/>
+  <line x1="20" y1="140" x2="70" y2="260" stroke="#5B3FD4" stroke-width="0.5" opacity="0.4"/>
+  <line x1="120" y1="140" x2="70" y2="260" stroke="#00D4FF" stroke-width="0.5" opacity="0.4"/>
+
+  <!-- ── II Roman numeral ── -->
+  <!-- Positioned to the right of the diamond, vertically centred -->
+  <text
+    x="148"
+    y="168"
+    font-family="'Georgia', 'Times New Roman', serif"
+    font-size="88"
+    font-weight="700"
+    fill="#00D4FF"
+    filter="url(#glow-blue)"
+    letter-spacing="-4"
+    opacity="0.95">II</text>
+
+  <!-- Extra outer glow pass for II -->
+  <text
+    x="148"
+    y="168"
+    font-family="'Georgia', 'Times New Roman', serif"
+    font-size="88"
+    font-weight="700"
+    fill="none"
+    stroke="#8B5CF6"
+    stroke-width="1"
+    filter="url(#glow-purple)"
+    letter-spacing="-4"
+    opacity="0.5">II</text>
+</svg>

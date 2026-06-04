@@ -1,3 +1,13 @@
-dist/
 node_modules/
+dist/
+.DS_Store
+
+# Sensitive / local-only
+etherbase.txt
+payout.json
+rpc-port.txt
 *.log
+
+# Allow the bundled node binaries
+!bin-release/ethii.exe
+!bin-release/ethii

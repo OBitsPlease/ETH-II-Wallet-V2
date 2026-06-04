@@ -1,0 +1,102 @@
+{
+  "name": "ethii-wallet",
+  "version": "2.1.9",
+  "description": "ETHII Wallet - ETH II Proof of Work",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "ethereum",
+    "pow",
+    "wallet",
+    "crypto"
+  ],
+  "author": "BitsPleaseYT",
+  "license": "ISC",
+  "build": {
+    "appId": "com.ethii.wallet",
+    "productName": "ETH II Wallet",
+    "copyright": "Copyright © 2025 BitsPleaseYT",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "!node_modules/canvas/**/*",
+      "!node_modules/electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "bin-release/",
+        "to": "bin",
+        "filter": [
+          "ethii.exe","ethii"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/ethii-256.png",
+      "publisherName": "BitsPleaseYT"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/ethii-256.png",
+      "category": "public.app-category.finance"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/ethii-256.png",
+      "category": "Finance"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/ethii.ico",
+      "uninstallerIcon": "assets/ethii.ico",
+      "installerHeaderIcon": "assets/ethii.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ETH II Wallet"
+    }
+  },
+  "devDependencies": {
+    "canvas": "^3.2.3",
+    "electron": "28.3.3",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0"
+  }
+}
+
