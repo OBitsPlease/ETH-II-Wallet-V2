@@ -442,8 +442,6 @@ ipcMain.handle('get-tx-history', async (_, { address, limit = 1000 }) => {
     return { success: false, error: e.message };
   }
 });
-  }
-});
 
 // Get node status — uses direct RPC fetch for reliability
 ipcMain.handle('get-node-status', async () => {
