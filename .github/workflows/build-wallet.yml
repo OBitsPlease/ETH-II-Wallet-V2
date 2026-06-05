@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -19,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build Windows installer
-        run: npm run build:win
+        run: npm run build:win -- --publish never
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
@@ -38,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build Linux AppImage
-        run: npm run build:linux
+        run: npm run build:linux -- --publish never
       - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
         with:

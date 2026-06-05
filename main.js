@@ -30,7 +30,7 @@ const SECONDARY_RPC_URL = 'http://91.99.231.217:8545'; // EU VPS fallback
 const PUBLIC_RPC_URL = 'https://ethii.net/rpc'; // public fallback
 const READ_RPC_URL = PRIMARY_RPC_URL; // canonical chain source for wallet reads/tx
 const READ_RPC_CANDIDATES = [READ_RPC_URL, SECONDARY_RPC_URL, PUBLIC_RPC_URL];
-const RELEASES_API_URL = 'https://api.github.com/repos/OBitsPlease/ETH-II-Solo-Miner-Suite/releases';
+const RELEASES_API_URL = 'https://api.github.com/repos/OBitsPlease/ETH-II-Wallet-V2/releases';
 const HTTP_HEADERS = { 'User-Agent': 'ETHII-Wallet-Updater' };
 const CHAIN_ID = 2048;
 const BOOTNODE_ENODES = [
@@ -90,7 +90,7 @@ async function checkForWalletUpdate() {
     if (!res.ok) return;
     const releases = await res.json();
     const walletReleases = (Array.isArray(releases) ? releases : [])
-      .filter((r) => r && r.tag_name && /^wallet-v\d+\.\d+\.\d+$/.test(r.tag_name) && !r.draft && !r.prerelease)
+      .filter((r) => r && r.tag_name && /^v\d+\.\d+\.\d+$/.test(r.tag_name) && !r.draft && !r.prerelease)
       .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
     const latest = walletReleases[0];
     if (!latest) return;
@@ -279,6 +279,21 @@ function tryConnectProvider() {
   }
 }
 
+// Probe each candidate RPC URL and return the first reachable provider.
+async function resolveWorkingProvider() {
+  const urls = [...new Set([...READ_RPC_CANDIDATES, RPC_URL])];
+  const network = ethers.Network.from({ chainId: CHAIN_ID, name: 'ethii' });
+  let lastErr;
+  for (const url of urls) {
+    try {
+      const p = new ethers.JsonRpcProvider(url, network, { staticNetwork: network });
+      await p.send('eth_chainId', []);
+      return p;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('No RPC endpoint reachable');
+}
+
 // Window controls
 ipcMain.on('window-minimize', () => mainWindow.minimize());
 ipcMain.on('window-maximize', () => {
@@ -355,9 +370,8 @@ ipcMain.handle('get-balance', async (_, { address }) => {
 // Send transaction
 ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
   try {
-    if (!provider) tryConnectProvider();
-    if (!provider) throw new Error('RPC unavailable');
-    const wallet = new ethers.Wallet(privateKey, provider);
+    const p = await resolveWorkingProvider();
+    const wallet = new ethers.Wallet(privateKey, p);
     const tx = await wallet.sendTransaction({
       to,
       value: ethers.parseEther(amount),
