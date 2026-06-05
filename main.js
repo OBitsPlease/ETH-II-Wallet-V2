@@ -376,6 +376,7 @@ ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
       to,
       value: ethers.parseEther(amount),
       gasPrice: ethers.parseUnits(gasPrice || '0.5', 'gwei'),
+      gasLimit: 21000n, // plain transfer — skip eth_estimateGas (unsupported on this RPC)
       chainId: CHAIN_ID,
     });
     // Return immediately after broadcast so UI doesn't look stuck on "Signing".
