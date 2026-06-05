@@ -6,6 +6,9 @@ let currentAddress = null;
 let currentPrivateKey = null;
 let txHistory = [];
 let txFilter = 'all';
+let txSearch = '';
+let txPage = 0;
+const TX_PAGE_SIZE = 15;
 
 // Update MetaMask RPC chip: show public RPC endpoint.
 (function initMetaMaskRpc() {
@@ -82,24 +85,57 @@ function shortHash(hash) {
   return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
 }
 
+function getFilteredTxs() {
+  const q = txSearch.trim().toLowerCase();
+  return txHistory.filter((tx) => {
+    if (txFilter !== 'all' && tx.direction !== txFilter) return false;
+    if (!q) return true;
+    return (
+      (tx.from || '').toLowerCase().includes(q) ||
+      (tx.to || '').toLowerCase().includes(q) ||
+      (tx.hash || '').toLowerCase().includes(q) ||
+      String(tx.value || '').includes(q) ||
+      String(tx.blockNumber ?? '').includes(q)
+    );
+  });
+}
+
 function renderTxHistory() {
   const tbody = document.getElementById('history-tbody');
   if (!tbody) return;
 
-  const items = txHistory.filter((tx) => txFilter === 'all' || tx.direction === txFilter);
+  const filtered = getFilteredTxs();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / TX_PAGE_SIZE));
+  if (txPage >= totalPages) txPage = totalPages - 1;
+  if (txPage < 0) txPage = 0;
+
+  const start = txPage * TX_PAGE_SIZE;
+  const items = filtered.slice(start, start + TX_PAGE_SIZE);
+
+  const pageLabel = document.getElementById('history-page-label');
+  const prevBtn = document.getElementById('btn-hist-prev');
+  const nextBtn = document.getElementById('btn-hist-next');
+  if (pageLabel) pageLabel.textContent = filtered.length
+    ? `Page ${txPage + 1} of ${totalPages}  (${filtered.length} txn${filtered.length !== 1 ? 's' : ''})`
+    : '0 transactions';
+  if (prevBtn) prevBtn.disabled = txPage === 0;
+  if (nextBtn) nextBtn.disabled = txPage >= totalPages - 1;
+
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="mono small">No matching transactions found.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="5" class="mono small">${txSearch ? 'No transactions match your search.' : 'No transactions found.'}</td></tr>`;
     return;
   }
 
   tbody.innerHTML = items.map((tx) => {
     const counterparty = tx.direction === 'in' ? tx.from : tx.to;
     const dirClass = tx.direction === 'in' ? 'tx-dir-in' : 'tx-dir-out';
-    const dirText = tx.direction === 'in' ? 'IN' : 'OUT';
+    const dirText = tx.direction === 'in' ? '▼ IN' : '▲ OUT';
+    const amt = parseFloat(tx.value || '0');
+    const amtDisplay = Number.isFinite(amt) ? amt.toFixed(4) : '—';
     return `<tr>
       <td class="${dirClass}">${dirText}</td>
-      <td>${Number(tx.value || 0).toFixed(6)} ETHII</td>
-      <td class="mono">${truncateAddress(counterparty || '—')}</td>
+      <td>${amtDisplay} ETHII</td>
+      <td class="mono" title="${counterparty || ''}">${truncateAddress(counterparty || '—')}</td>
       <td>${Number.isFinite(tx.blockNumber) ? tx.blockNumber : '—'}</td>
       <td class="mono" title="${tx.hash || ''}">${shortHash(tx.hash)}</td>
     </tr>`;
@@ -110,12 +146,12 @@ async function refreshTxHistory() {
   if (!currentAddress) return;
   const status = document.getElementById('history-status');
   if (status) {
-    status.textContent = 'Loading transaction history...';
+    status.textContent = 'Scanning blocks for transactions… (this may take a few seconds)';
     status.className = 'status-msg loading';
     status.classList.remove('hidden');
   }
 
-  const result = await window.ethii.getTxHistory({ address: currentAddress, limit: 300 });
+  const result = await window.ethii.getTxHistory({ address: currentAddress, limit: 1000 });
   if (!result.success) {
     if (status) {
       status.textContent = `History load failed: ${result.error}`;
@@ -125,10 +161,16 @@ async function refreshTxHistory() {
   }
 
   txHistory = Array.isArray(result.txs) ? result.txs : [];
+  txPage = 0;
   renderTxHistory();
   if (status) {
-    status.textContent = `Loaded ${txHistory.length} transaction(s).`;
-    status.className = 'status-msg success';
+    if (txHistory.length === 0) {
+      status.textContent = 'No transactions found for this address.';
+      status.className = 'status-msg';
+    } else {
+      status.textContent = `Found ${txHistory.length} transaction(s).`;
+      status.className = 'status-msg success';
+    }
   }
 }
 
@@ -451,10 +493,26 @@ document.querySelectorAll('[data-view]').forEach(btn => {
 document.querySelectorAll('.history-filter').forEach((btn) => {
   btn.addEventListener('click', () => {
     txFilter = btn.dataset.filter;
+    txPage = 0;
     document.querySelectorAll('.history-filter').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     renderTxHistory();
   });
+});
+
+document.getElementById('history-search')?.addEventListener('input', (e) => {
+  txSearch = e.target.value;
+  txPage = 0;
+  renderTxHistory();
+});
+
+document.getElementById('btn-hist-prev')?.addEventListener('click', () => {
+  if (txPage > 0) { txPage--; renderTxHistory(); }
+});
+
+document.getElementById('btn-hist-next')?.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(getFilteredTxs().length / TX_PAGE_SIZE));
+  if (txPage < totalPages - 1) { txPage++; renderTxHistory(); }
 });
 
 document.getElementById('btn-refresh-history')?.addEventListener('click', refreshTxHistory);

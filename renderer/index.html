@@ -250,6 +250,9 @@
           <button class="btn btn-secondary history-filter" data-filter="out">Outgoing</button>
           <button class="btn btn-outline" id="btn-refresh-history">⟳ Refresh</button>
         </div>
+        <div class="history-search-wrap">
+          <input type="text" id="history-search" class="input" placeholder="Search by address, amount, or tx hash…" autocomplete="off" />
+        </div>
         <div id="history-status" class="status-msg loading hidden"></div>
         <div class="history-table-wrap">
           <table class="history-table">
@@ -266,6 +269,11 @@
               <tr><td colspan="5" class="mono small">No transaction history loaded yet.</td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="history-pagination" id="history-pagination">
+          <button class="btn btn-outline" id="btn-hist-prev" disabled>← Prev</button>
+          <span id="history-page-label" class="text-sub small"></span>
+          <button class="btn btn-outline" id="btn-hist-next" disabled>Next →</button>
         </div>
       </div>
 

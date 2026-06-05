@@ -483,7 +483,23 @@ input[readonly] { color: var(--text-sub); cursor: default; }
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
+}
+
+.history-search-wrap {
+  margin-bottom: 12px;
+}
+
+.history-search-wrap .input {
+  width: 100%;
+}
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  justify-content: center;
 }
 
 .history-filter.active {

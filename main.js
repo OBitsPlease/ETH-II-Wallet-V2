@@ -389,8 +389,8 @@ ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
   }
 });
 
-// Get transaction history for an address by scanning chain blocks.
-ipcMain.handle('get-tx-history', async (_, { address, limit = 200 }) => {
+// Get transaction history for an address by scanning chain blocks in parallel batches.
+ipcMain.handle('get-tx-history', async (_, { address, limit = 1000 }) => {
   try {
     if (!address) throw new Error('No address provided');
 
@@ -402,35 +402,46 @@ ipcMain.handle('get-tx-history', async (_, { address, limit = 200 }) => {
     }
 
     const txs = [];
-    for (let n = blockNum; n >= 0; n -= 1) {
-      if (txs.length >= limit) break;
-      const blockHex = '0x' + n.toString(16);
-      const block = await rpcCallRead('eth_getBlockByNumber', [blockHex, true]);
-      if (!block || !Array.isArray(block.transactions)) continue;
+    const BATCH = 30; // fetch 30 blocks in parallel at a time
 
-      for (const tx of block.transactions) {
-        const from = String(tx.from || '').toLowerCase();
-        const to = tx.to ? String(tx.to).toLowerCase() : '';
-        if (from !== needle && to !== needle) continue;
+    for (let base = blockNum; base >= 0 && txs.length < limit; base -= BATCH) {
+      const end = Math.max(0, base - BATCH + 1);
+      const promises = [];
+      for (let n = base; n >= end; n--) {
+        const hex = '0x' + n.toString(16);
+        promises.push(rpcCallRead('eth_getBlockByNumber', [hex, true]).catch(() => null));
+      }
+      const blocks = await Promise.all(promises);
 
-        const direction = to === needle ? 'in' : 'out';
-        txs.push({
-          hash: tx.hash,
-          blockNumber: parseInt(tx.blockNumber || blockHex, 16),
-          timestamp: parseInt(block.timestamp || '0x0', 16),
-          from: tx.from || '',
-          to: tx.to || '',
-          value: ethers.formatEther(tx.value || '0x0'),
-          direction,
-        });
+      for (const block of blocks) {
+        if (!block || !Array.isArray(block.transactions)) continue;
+        for (const tx of block.transactions) {
+          const from = String(tx.from || '').toLowerCase();
+          const to = tx.to ? String(tx.to).toLowerCase() : '';
+          if (from !== needle && to !== needle) continue;
 
-        if (txs.length >= limit) break;
+          const direction = to === needle ? 'in' : 'out';
+          const blockNumParsed = parseInt(block.number || '0x0', 16);
+          txs.push({
+            hash: tx.hash,
+            blockNumber: Number.isFinite(blockNumParsed) ? blockNumParsed : null,
+            timestamp: parseInt(block.timestamp || '0x0', 16),
+            from: tx.from || '',
+            to: tx.to || '',
+            value: ethers.formatEther(tx.value || '0x0'),
+            direction,
+          });
+        }
       }
     }
 
+    // Sort newest first
+    txs.sort((a, b) => (b.blockNumber ?? 0) - (a.blockNumber ?? 0));
     return { success: true, txs };
   } catch (e) {
     return { success: false, error: e.message };
+  }
+});
   }
 });
 
