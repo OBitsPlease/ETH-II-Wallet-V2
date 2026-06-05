@@ -32,7 +32,7 @@ const READ_RPC_URL = PRIMARY_RPC_URL; // canonical chain source for wallet reads
 const READ_RPC_CANDIDATES = [READ_RPC_URL, SECONDARY_RPC_URL, PUBLIC_RPC_URL];
 const RELEASES_API_URL = 'https://api.github.com/repos/OBitsPlease/ETH-II-Wallet-V2/releases';
 const HTTP_HEADERS = { 'User-Agent': 'ETHII-Wallet-Updater' };
-const CHAIN_ID = 2048;
+const CHAIN_ID = 20482;
 const BOOTNODE_ENODES = [
   'enode://05f7f1c669368d16829699b6e1ddffbd8a3fee08a1301cac33922ad05f56fd53aadbca02f326d6b1c863c560c9adf30a75b44d45e7448ebb41d9c47235204fdf@87.99.142.128:30303',
   'enode://b096bfae7d5e9a7cc985e68726280b75b0a0ef80ce419db5ed5152e9bee7bf83d35ae8b13b34879a0bf36d73a9a674bb61b02f3777745ed770e3150a39c7de5b@91.99.231.217:30303',
