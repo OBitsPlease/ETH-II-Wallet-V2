@@ -370,6 +370,9 @@ ipcMain.handle('get-balance', async (_, { address }) => {
 // Send transaction
 ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
   try {
+    if (!to || !ethers.isAddress(to)) throw new Error('Invalid recipient address.');
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) throw new Error('Invalid amount. Must be greater than 0.');
     const p = await resolveWorkingProvider();
     const wallet = new ethers.Wallet(privateKey, p);
     const tx = await wallet.sendTransaction({
@@ -603,6 +606,7 @@ async function rpcCallOnUrl(url, method, params = []) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    signal: AbortSignal.timeout(10000),
   });
   let json;
   try { json = await resp.json(); }
@@ -659,11 +663,13 @@ ipcMain.handle('export-keystore', async () => {
     defaultPath: 'ethii-keystore.json',
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
-  if (filePath) {
+  if (!filePath) return { success: false, error: 'Cancelled.' };
+  try {
     fs.copyFileSync(WALLET_FILE, filePath);
     return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
   }
-  return { success: false, error: 'Cancelled.' };
 });
 
 

@@ -100,7 +100,7 @@ function renderTxHistory() {
       <td class="${dirClass}">${dirText}</td>
       <td>${Number(tx.value || 0).toFixed(6)} ETHII</td>
       <td class="mono">${truncateAddress(counterparty || '—')}</td>
-      <td>${tx.blockNumber ?? '—'}</td>
+      <td>${Number.isFinite(tx.blockNumber) ? tx.blockNumber : '—'}</td>
       <td class="mono" title="${tx.hash || ''}">${shortHash(tx.hash)}</td>
     </tr>`;
   }).join('');
@@ -289,6 +289,7 @@ document.getElementById('btn-send').addEventListener('click', async () => {
   const password = document.getElementById('send-password').value;
 
   if (!to || !amount) { showStatus('send-status', 'Please fill in all fields.', 'error'); return; }
+  if (!password && !currentPrivateKey) { showStatus('send-status', 'Please enter your wallet password.', 'error'); return; }
 
   // Unlock private key using password
   showStatus('send-status', 'Signing transaction…', 'loading');
