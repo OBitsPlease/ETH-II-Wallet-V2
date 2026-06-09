@@ -235,6 +235,21 @@ if ($WalletRuntimeAvailable) {
   Write-Host ""
 }
 
+# ── SSH RPC tunnel to canonical VPS (allows wallet sends to route through canonical RPC) ────
+if (Test-Path $KeyPath) {
+  $tunnelProc = Get-Process -Name ssh -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like '*-L*8545*' } |
+    Select-Object -First 1
+  if (-not $tunnelProc) {
+    Write-Host "Starting SSH RPC tunnel to primary VPS (localhost:8545 -> 87.99.142.128:8545)..." -ForegroundColor Cyan
+    Start-Process ssh -ArgumentList "-i `"$KeyPath`" -N -L 8545:127.0.0.1:8545 root@87.99.142.128" -WindowStyle Hidden | Out-Null
+    Start-Sleep -Milliseconds 500
+  }
+} else {
+  Write-Host "WARNING: SSH key not found; RPC tunnel unavailable. Wallet will use public RPC fallback for sends." -ForegroundColor Yellow
+}
+Write-Host ""
+
 # ── Ensure firewall allows inbound connections on stratum and RPC ports ────────
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $fwStratum = Get-NetFirewallRule -DisplayName "ETHII Stratum"     -ErrorAction SilentlyContinue

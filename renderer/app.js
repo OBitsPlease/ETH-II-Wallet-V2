@@ -151,7 +151,7 @@ async function refreshTxHistory() {
     status.classList.remove('hidden');
   }
 
-  const result = await window.ethii.getTxHistory({ address: currentAddress, limit: 1000 });
+  const result = await window.ethii.getTxHistory({ address: currentAddress, limit: 500, scan: 50000 });
   if (!result.success) {
     if (status) {
       status.textContent = `History load failed: ${result.error}`;

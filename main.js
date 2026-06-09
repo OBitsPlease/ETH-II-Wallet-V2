@@ -23,16 +23,19 @@ if (!gotLock) {
 }
 
 let WALLET_FILE; // initialized after app is ready
+let PENDING_TX_FILE; // initialized after app is ready
 let RPC_PORT = 8545; // default, may be updated by port scan
 let RPC_URL = 'http://127.0.0.1:8545';
 const PRIMARY_RPC_URL = 'http://87.99.142.128:8545'; // USA VPS (canonical)
 const SECONDARY_RPC_URL = 'http://91.99.231.217:8545'; // EU VPS fallback
+const LOCALHOST_RPC_URL = 'http://127.0.0.1:8545'; // localhost SSH tunnel (if active)
 const PUBLIC_RPC_URL = 'https://ethii.net/rpc'; // public fallback
 const READ_RPC_URL = PRIMARY_RPC_URL; // canonical chain source for wallet reads/tx
-const READ_RPC_CANDIDATES = [READ_RPC_URL, SECONDARY_RPC_URL, PUBLIC_RPC_URL];
+const READ_RPC_CANDIDATES = [READ_RPC_URL, SECONDARY_RPC_URL, LOCALHOST_RPC_URL, PUBLIC_RPC_URL];
+const SEND_RPC_CANDIDATES = [LOCALHOST_RPC_URL, PRIMARY_RPC_URL, SECONDARY_RPC_URL];
 const RELEASES_API_URL = 'https://api.github.com/repos/OBitsPlease/ETH-II-Wallet-V2/releases';
 const HTTP_HEADERS = { 'User-Agent': 'ETHII-Wallet-Updater' };
-const CHAIN_ID = 20482;
+const CHAIN_ID_FALLBACK = 2048;
 const BOOTNODE_ENODES = [
   'enode://05f7f1c669368d16829699b6e1ddffbd8a3fee08a1301cac33922ad05f56fd53aadbca02f326d6b1c863c560c9adf30a75b44d45e7448ebb41d9c47235204fdf@87.99.142.128:30303',
   'enode://b096bfae7d5e9a7cc985e68726280b75b0a0ef80ce419db5ed5152e9bee7bf83d35ae8b13b34879a0bf36d73a9a674bb61b02f3777745ed770e3150a39c7de5b@91.99.231.217:30303',
@@ -221,6 +224,23 @@ function createWindow() {
   });
 }
 
+function readPendingTxs() {
+  try {
+    if (!PENDING_TX_FILE || !fs.existsSync(PENDING_TX_FILE)) return [];
+    const arr = JSON.parse(fs.readFileSync(PENDING_TX_FILE, 'utf8'));
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePendingTxs(items) {
+  try {
+    if (!PENDING_TX_FILE) return;
+    fs.writeFileSync(PENDING_TX_FILE, JSON.stringify(items, null, 2), 'utf8');
+  } catch {}
+}
+
 function focusOrCreateMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -239,6 +259,7 @@ app.on('second-instance', () => {
 
 app.whenReady().then(async () => {
   WALLET_FILE = path.join(app.getPath('userData'), 'ethii-wallet.json');
+  PENDING_TX_FILE = path.join(app.getPath('userData'), 'pending-tx-history.json');
   // Find the port where the ETHII node RPC is listening (default 8545)
   RPC_PORT = await findNodePort(8545);
   RPC_URL = `http://127.0.0.1:${RPC_PORT}`;
@@ -272,8 +293,7 @@ app.on('window-all-closed', () => {
 // Try to connect to the local ETHII node
 function tryConnectProvider() {
   try {
-    const network = ethers.Network.from({ chainId: CHAIN_ID, name: 'ethii' });
-    provider = new ethers.JsonRpcProvider(READ_RPC_URL, network, { staticNetwork: network });
+    provider = new ethers.JsonRpcProvider(READ_RPC_URL);
   } catch (e) {
     provider = null;
   }
@@ -282,11 +302,10 @@ function tryConnectProvider() {
 // Probe each candidate RPC URL and return the first reachable provider.
 async function resolveWorkingProvider() {
   const urls = [...new Set([...READ_RPC_CANDIDATES, RPC_URL])];
-  const network = ethers.Network.from({ chainId: CHAIN_ID, name: 'ethii' });
   let lastErr;
   for (const url of urls) {
     try {
-      const p = new ethers.JsonRpcProvider(url, network, { staticNetwork: network });
+      const p = new ethers.JsonRpcProvider(url);
       await p.send('eth_chainId', []);
       return p;
     } catch (e) { lastErr = e; }
@@ -370,74 +389,199 @@ ipcMain.handle('get-balance', async (_, { address }) => {
 // Send transaction
 ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
   try {
+    if (!provider) tryConnectProvider();
+    if (!provider) throw new Error('RPC unavailable');
+
     if (!to || !ethers.isAddress(to)) throw new Error('Invalid recipient address.');
     const parsedAmount = parseFloat(amount);
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) throw new Error('Invalid amount. Must be greater than 0.');
-    const p = await resolveWorkingProvider();
-    const wallet = new ethers.Wallet(privateKey, p);
-    const tx = await wallet.sendTransaction({
+
+    let sendProvider = null;
+    let highestBlock = -1;
+    for (const url of SEND_RPC_CANDIDATES) {
+      try {
+        const candidate = new ethers.JsonRpcProvider(url);
+        const [netVersion, blockHex] = await Promise.all([
+          candidate.send('net_version', []),
+          candidate.send('eth_blockNumber', []),
+        ]);
+        if (String(netVersion) !== '20482') continue;
+        const blockNum = parseInt(blockHex, 16);
+        if (Number.isFinite(blockNum) && blockNum > highestBlock) {
+          highestBlock = blockNum;
+          sendProvider = candidate;
+        }
+      } catch {
+        // Try next canonical endpoint.
+      }
+    }
+    if (!sendProvider) throw new Error('Canonical send RPC unavailable. Start wallet via launch-node.ps1 so localhost tunnel is active.');
+
+    const chainIdHex = await sendProvider.send('eth_chainId', []);
+    const chainId = typeof chainIdHex === 'string' && chainIdHex.startsWith('0x')
+      ? Number.parseInt(chainIdHex, 16)
+      : Number.parseInt(String(chainIdHex), 10);
+    const safeChainId = Number.isFinite(chainId) && chainId > 0 ? chainId : CHAIN_ID_FALLBACK;
+
+    const wallet = new ethers.Wallet(privateKey);
+    const from = await wallet.getAddress();
+    const [latestNonceHex, pendingNonceHex, pendingBlock] = await Promise.all([
+      sendProvider.send('eth_getTransactionCount', [from, 'latest']),
+      sendProvider.send('eth_getTransactionCount', [from, 'pending']),
+      sendProvider.send('eth_getBlockByNumber', ['pending', true]).catch(() => null),
+    ]);
+    const latestNonce = typeof latestNonceHex === 'string' && latestNonceHex.startsWith('0x')
+      ? Number.parseInt(latestNonceHex, 16)
+      : Number.parseInt(String(latestNonceHex), 10);
+    const pendingNonce = typeof pendingNonceHex === 'string' && pendingNonceHex.startsWith('0x')
+      ? Number.parseInt(pendingNonceHex, 16)
+      : Number.parseInt(String(pendingNonceHex), 10);
+
+    if (Number.isFinite(latestNonce) && Number.isFinite(pendingNonce) && pendingNonce > latestNonce) {
+      const queued = [];
+      if (pendingBlock && Array.isArray(pendingBlock.transactions)) {
+        const needle = String(from).toLowerCase();
+        for (const tx of pendingBlock.transactions) {
+          if (String(tx?.from || '').toLowerCase() !== needle) continue;
+          const nonceNum = tx?.nonce ? parseInt(tx.nonce, 16) : null;
+          if (!Number.isFinite(nonceNum)) continue;
+          queued.push({
+            nonce: nonceNum,
+            to: tx?.to || '',
+            value: tx?.value ? ethers.formatEther(tx.value) : '0',
+          });
+        }
+      }
+      queued.sort((a, b) => a.nonce - b.nonce);
+      const preview = queued
+        .slice(0, 5)
+        .map((q) => `nonce ${q.nonce} -> ${q.to} (${q.value})`)
+        .join('; ');
+      const extra = preview ? ` Queued preview: ${preview}.` : '';
+      throw new Error(
+        `Safety stop: ${pendingNonce - latestNonce} queued outgoing transaction(s) detected (nonces ${latestNonce}..${pendingNonce - 1}). New sends are blocked to prevent accidental replay.${extra}`,
+      );
+    }
+
+    const nonce = pendingNonce;
+    const signed = await wallet.signTransaction({
       to,
       value: ethers.parseEther(amount),
       gasPrice: ethers.parseUnits(gasPrice || '0.5', 'gwei'),
       gasLimit: 21000n, // plain transfer — skip eth_estimateGas (unsupported on this RPC)
-      chainId: CHAIN_ID,
+      nonce,
+      chainId: safeChainId,
     });
+    const txHash = await sendProvider.send('eth_sendRawTransaction', [signed]);
+    const pending = readPendingTxs();
+    pending.unshift({
+      hash: txHash,
+      from,
+      to,
+      value: amount,
+      direction: 'out',
+      createdAt: Math.floor(Date.now() / 1000),
+    });
+    writePendingTxs(pending.slice(0, 2000));
     // Return immediately after broadcast so UI doesn't look stuck on "Signing".
-    return { success: true, hash: tx.hash, status: 'broadcast' };
+    return { success: true, hash: txHash, status: 'broadcast' };
   } catch (e) {
     return { success: false, error: e.message };
   }
 });
 
-// Get transaction history for an address by scanning chain blocks in parallel batches.
-ipcMain.handle('get-tx-history', async (_, { address, limit = 1000 }) => {
+// Get transaction history for an address by scanning recent chain blocks.
+ipcMain.handle('get-tx-history', async (_, { address, limit = 300, scan = 20000 }) => {
   try {
     if (!address) throw new Error('No address provided');
 
     const needle = String(address).toLowerCase();
+    const maxItems = Math.min(Math.max(parseInt(limit, 10) || 300, 1), 800);
+    const maxScan = Math.min(Math.max(parseInt(scan, 10) || 20000, 500), 120000);
     const latestHex = await rpcCallRead('eth_blockNumber', []);
-    let blockNum = parseInt(latestHex, 16);
+    const blockNum = parseInt(latestHex, 16);
     if (!Number.isFinite(blockNum) || blockNum < 0) {
       throw new Error('Unable to read latest block');
     }
 
     const txs = [];
-    const BATCH = 30; // fetch 30 blocks in parallel at a time
+    const startBlock = Math.max(0, blockNum - maxScan + 1);
+    const BATCH = 40;
 
-    for (let base = blockNum; base >= 0 && txs.length < limit; base -= BATCH) {
-      const end = Math.max(0, base - BATCH + 1);
+    for (let base = blockNum; base >= startBlock && txs.length < maxItems; base -= BATCH) {
+      const end = Math.max(startBlock, base - BATCH + 1);
       const promises = [];
-      for (let n = base; n >= end; n--) {
-        const hex = '0x' + n.toString(16);
-        promises.push(rpcCallRead('eth_getBlockByNumber', [hex, true]).catch(() => null));
+      for (let n = base; n >= end; n -= 1) {
+        const blockHex = '0x' + n.toString(16);
+        promises.push(rpcCallRead('eth_getBlockByNumber', [blockHex, true]).catch(() => null));
       }
       const blocks = await Promise.all(promises);
 
       for (const block of blocks) {
         if (!block || !Array.isArray(block.transactions)) continue;
+
         for (const tx of block.transactions) {
           const from = String(tx.from || '').toLowerCase();
           const to = tx.to ? String(tx.to).toLowerCase() : '';
           if (from !== needle && to !== needle) continue;
 
           const direction = to === needle ? 'in' : 'out';
-          const blockNumParsed = parseInt(block.number || '0x0', 16);
           txs.push({
             hash: tx.hash,
-            blockNumber: Number.isFinite(blockNumParsed) ? blockNumParsed : null,
+            blockNumber: parseInt(tx.blockNumber || block.number || '0x0', 16),
             timestamp: parseInt(block.timestamp || '0x0', 16),
             from: tx.from || '',
             to: tx.to || '',
             value: ethers.formatEther(tx.value || '0x0'),
             direction,
           });
+
+          if (txs.length >= maxItems) break;
         }
+
+        if (txs.length >= maxItems) break;
       }
     }
 
-    // Sort newest first
-    txs.sort((a, b) => (b.blockNumber ?? 0) - (a.blockNumber ?? 0));
-    return { success: true, txs };
+    const pending = readPendingTxs();
+    const keepPending = [];
+    for (const p of pending) {
+      if (!p || !p.hash) continue;
+      try {
+        const tx = await rpcCallRead('eth_getTransactionByHash', [p.hash]);
+        if (!tx) continue;
+        const from = String(tx.from || p.from || '').toLowerCase();
+        const to = String(tx.to || p.to || '').toLowerCase();
+        if (from !== needle && to !== needle) {
+          if (!tx.blockNumber) keepPending.push(p);
+          continue;
+        }
+        const existing = txs.find((x) => String(x.hash || '').toLowerCase() === String(p.hash).toLowerCase());
+        if (!existing) {
+          txs.push({
+            hash: tx.hash || p.hash,
+            blockNumber: tx.blockNumber ? parseInt(tx.blockNumber, 16) : null,
+            timestamp: p.createdAt || Math.floor(Date.now() / 1000),
+            from: tx.from || p.from || '',
+            to: tx.to || p.to || '',
+            value: tx.value ? ethers.formatEther(tx.value) : String(p.value || '0'),
+            direction: (to === needle) ? 'in' : 'out',
+          });
+        }
+        if (!tx.blockNumber) keepPending.push(p);
+      } catch {
+        keepPending.push(p);
+      }
+    }
+    writePendingTxs(keepPending.slice(0, 2000));
+
+    txs.sort((a, b) => {
+      const ab = Number.isFinite(a.blockNumber) ? a.blockNumber : -1;
+      const bb = Number.isFinite(b.blockNumber) ? b.blockNumber : -1;
+      if (bb !== ab) return bb - ab;
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+    return { success: true, txs, scannedBlocks: blockNum - startBlock + 1, latestBlock: blockNum };
   } catch (e) {
     return { success: false, error: e.message };
   }
