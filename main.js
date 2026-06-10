@@ -32,7 +32,8 @@ const LOCALHOST_RPC_URL = 'http://127.0.0.1:8545'; // localhost SSH tunnel (if a
 const PUBLIC_RPC_URL = 'https://ethii.net/rpc'; // public fallback
 const READ_RPC_URL = PRIMARY_RPC_URL; // canonical chain source for wallet reads/tx
 const READ_RPC_CANDIDATES = [READ_RPC_URL, SECONDARY_RPC_URL, LOCALHOST_RPC_URL, PUBLIC_RPC_URL];
-const SEND_RPC_CANDIDATES = [LOCALHOST_RPC_URL, PRIMARY_RPC_URL, SECONDARY_RPC_URL];
+const SEND_RPC_CANDIDATES = [LOCALHOST_RPC_URL, PRIMARY_RPC_URL, SECONDARY_RPC_URL, PUBLIC_RPC_URL];
+const EXPLORER_HISTORY_URL = 'https://www.ethii.net/api/address-history';
 const RELEASES_API_URL = 'https://api.github.com/repos/OBitsPlease/ETH-II-Wallet-V2/releases';
 const HTTP_HEADERS = { 'User-Agent': 'ETHII-Wallet-Updater' };
 const CHAIN_ID_FALLBACK = 2048;
@@ -490,22 +491,65 @@ ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
   }
 });
 
-// Get transaction history for an address by scanning recent chain blocks.
+// Fast path: the explorer indexer keeps a full per-address tx history.
+async function fetchIndexerHistory(needle, maxItems) {
+  const txs = [];
+  let page = 1;
+  let pages = 1;
+  while (page <= pages && txs.length < maxItems && page <= 50) {
+    const url = `${EXPLORER_HISTORY_URL}?addr=${needle}&kind=txs&page=${page}`;
+    const res = await fetch(url, { headers: HTTP_HEADERS, signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`indexer HTTP ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data.rows)) throw new Error('indexer bad response');
+    pages = Math.max(1, parseInt(data.pages, 10) || 1);
+    for (const r of data.rows) {
+      txs.push({
+        hash: r.hash,
+        blockNumber: r.block,
+        timestamp: r.ts,
+        from: r.from || '',
+        to: r.to || '',
+        value: ethers.formatEther(BigInt(r.value || '0')),
+        direction: String(r.to || '').toLowerCase() === needle ? 'in' : 'out',
+      });
+      if (txs.length >= maxItems) break;
+    }
+    if (data.rows.length === 0) break;
+    page += 1;
+  }
+  return txs;
+}
+
+// Get transaction history: explorer indexer first, RPC block scan as fallback.
 ipcMain.handle('get-tx-history', async (_, { address, limit = 300, scan = 20000 }) => {
   try {
     if (!address) throw new Error('No address provided');
 
     const needle = String(address).toLowerCase();
     const maxItems = Math.min(Math.max(parseInt(limit, 10) || 300, 1), 800);
+
+    let txs = null;
+    let scannedBlocks = null;
+    let latestBlock = null;
+    try {
+      txs = await fetchIndexerHistory(needle, maxItems);
+    } catch {
+      txs = null;
+    }
+
+    if (txs === null) {
+    txs = [];
     const maxScan = Math.min(Math.max(parseInt(scan, 10) || 20000, 500), 120000);
     const latestHex = await rpcCallRead('eth_blockNumber', []);
     const blockNum = parseInt(latestHex, 16);
     if (!Number.isFinite(blockNum) || blockNum < 0) {
       throw new Error('Unable to read latest block');
     }
+    latestBlock = blockNum;
 
-    const txs = [];
     const startBlock = Math.max(0, blockNum - maxScan + 1);
+    scannedBlocks = blockNum - startBlock + 1;
     const BATCH = 40;
 
     for (let base = blockNum; base >= startBlock && txs.length < maxItems; base -= BATCH) {
@@ -541,6 +585,7 @@ ipcMain.handle('get-tx-history', async (_, { address, limit = 300, scan = 20000 
 
         if (txs.length >= maxItems) break;
       }
+    }
     }
 
     const pending = readPendingTxs();
@@ -581,7 +626,7 @@ ipcMain.handle('get-tx-history', async (_, { address, limit = 300, scan = 20000 
       if (bb !== ab) return bb - ab;
       return (b.timestamp || 0) - (a.timestamp || 0);
     });
-    return { success: true, txs, scannedBlocks: blockNum - startBlock + 1, latestBlock: blockNum };
+    return { success: true, txs, scannedBlocks, latestBlock };
   } catch (e) {
     return { success: false, error: e.message };
   }

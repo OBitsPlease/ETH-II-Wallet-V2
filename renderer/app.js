@@ -146,7 +146,7 @@ async function refreshTxHistory() {
   if (!currentAddress) return;
   const status = document.getElementById('history-status');
   if (status) {
-    status.textContent = 'Scanning blocks for transactions… (this may take a few seconds)';
+    status.textContent = 'Loading transaction history…';
     status.className = 'status-msg loading';
     status.classList.remove('hidden');
   }
