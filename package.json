@@ -1,6 +1,6 @@
 {
   "name": "ethii-wallet",
-  "version": "2.1.17",
+  "version": "2.1.18",
   "description": "ETHII Wallet - ETH II Proof of Work",
   "main": "main.js",
   "scripts": {

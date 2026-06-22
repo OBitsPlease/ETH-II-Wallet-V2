@@ -26,17 +26,17 @@ let WALLET_FILE; // initialized after app is ready
 let PENDING_TX_FILE; // initialized after app is ready
 let RPC_PORT = 8545; // default, may be updated by port scan
 let RPC_URL = 'http://127.0.0.1:8545';
-const PRIMARY_RPC_URL = 'http://87.99.142.128:8545'; // USA VPS (canonical)
-const SECONDARY_RPC_URL = 'http://91.99.231.217:8545'; // EU VPS fallback
+const PRIMARY_RPC_URL = 'http://91.99.231.217:8545'; // EU truth node (canonical)
+const SECONDARY_RPC_URL = 'http://87.99.142.128:8545'; // US VPS fallback
 const LOCALHOST_RPC_URL = 'http://127.0.0.1:8545'; // localhost SSH tunnel (if active)
-const PUBLIC_RPC_URL = 'https://ethii.net/rpc'; // public fallback
-const READ_RPC_URL = PRIMARY_RPC_URL; // canonical chain source for wallet reads/tx
-const READ_RPC_CANDIDATES = [READ_RPC_URL, SECONDARY_RPC_URL, LOCALHOST_RPC_URL, PUBLIC_RPC_URL];
-const SEND_RPC_CANDIDATES = [LOCALHOST_RPC_URL, PRIMARY_RPC_URL, SECONDARY_RPC_URL, PUBLIC_RPC_URL];
+const PUBLIC_RPC_URL = 'https://www.ethii.net/rpc'; // public fallback
+const READ_RPC_URL = PUBLIC_RPC_URL; // public wallet RPC (no pool-IP allowlist dependency)
+const READ_RPC_CANDIDATES = [READ_RPC_URL, PRIMARY_RPC_URL, SECONDARY_RPC_URL, LOCALHOST_RPC_URL];
+const SEND_RPC_CANDIDATES = [PUBLIC_RPC_URL, PRIMARY_RPC_URL, SECONDARY_RPC_URL, LOCALHOST_RPC_URL];
 const EXPLORER_HISTORY_URL = 'https://www.ethii.net/api/address-history';
 const RELEASES_API_URL = 'https://api.github.com/repos/OBitsPlease/ETH-II-Wallet-V2/releases';
 const HTTP_HEADERS = { 'User-Agent': 'ETHII-Wallet-Updater' };
-const CHAIN_ID_FALLBACK = 2048;
+const CHAIN_ID_FALLBACK = 20482;
 const BOOTNODE_ENODES = [
   'enode://05f7f1c669368d16829699b6e1ddffbd8a3fee08a1301cac33922ad05f56fd53aadbca02f326d6b1c863c560c9adf30a75b44d45e7448ebb41d9c47235204fdf@87.99.142.128:30303',
   'enode://b096bfae7d5e9a7cc985e68726280b75b0a0ef80ce419db5ed5152e9bee7bf83d35ae8b13b34879a0bf36d73a9a674bb61b02f3777745ed770e3150a39c7de5b@91.99.231.217:30303',
@@ -398,20 +398,13 @@ ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) throw new Error('Invalid amount. Must be greater than 0.');
 
     let sendProvider = null;
-    let highestBlock = -1;
     for (const url of SEND_RPC_CANDIDATES) {
       try {
         const candidate = new ethers.JsonRpcProvider(url);
-        const [netVersion, blockHex] = await Promise.all([
-          candidate.send('net_version', []),
-          candidate.send('eth_blockNumber', []),
-        ]);
+        const netVersion = await candidate.send('net_version', []);
         if (String(netVersion) !== '20482') continue;
-        const blockNum = parseInt(blockHex, 16);
-        if (Number.isFinite(blockNum) && blockNum > highestBlock) {
-          highestBlock = blockNum;
-          sendProvider = candidate;
-        }
+        sendProvider = candidate;
+        break;
       } catch {
         // Try next canonical endpoint.
       }
@@ -869,5 +862,3 @@ ipcMain.handle('export-keystore', async () => {
     return { success: false, error: e.message };
   }
 });
-
-
