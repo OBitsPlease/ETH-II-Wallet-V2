@@ -331,24 +331,20 @@ document.getElementById('btn-send').addEventListener('click', async () => {
   const password = document.getElementById('send-password').value;
 
   if (!to || !amount) { showStatus('send-status', 'Please fill in all fields.', 'error'); return; }
-  if (!password && !currentPrivateKey) { showStatus('send-status', 'Please enter your wallet password.', 'error'); return; }
+  if (!password) { showStatus('send-status', 'Please enter your wallet password.', 'error'); return; }
 
   // Unlock private key using password
   showStatus('send-status', 'Signing transaction…', 'loading');
   document.getElementById('btn-send').textContent = 'Sending…';
 
-  let pk = currentPrivateKey;
-  if (!pk) {
-    const unlocked = await window.ethii.unlockWallet({ password });
-    if (!unlocked.success) {
-      showStatus('send-status', 'Wrong password.', 'error');
-      document.getElementById('btn-send').textContent = 'Send Transaction →';
-      return;
-    }
-    pk = unlocked.privateKey;
+  const unlocked = await window.ethii.unlockWallet({ password });
+  if (!unlocked.success) {
+    showStatus('send-status', 'Wrong password.', 'error');
+    document.getElementById('btn-send').textContent = 'Send Transaction →';
+    return;
   }
 
-  const result = await window.ethii.sendTx({ privateKey: pk, to, amount, gasPrice: gasPrice || '0.5' });
+  const result = await window.ethii.sendTx({ privateKey: unlocked.privateKey, to, amount, gasPrice: gasPrice || '0.5' });
   document.getElementById('btn-send').textContent = 'Send Transaction →';
   if (result.success) {
     showStatus('send-status', `✔ Broadcasted! TX: ${result.hash}`, 'success');

@@ -29,7 +29,7 @@ if exist "node_modules\electron\dist\electron.exe" (
 	echo ERROR: Wallet runtime not found.
 	echo Missing: %~dp0node_modules\electron\dist\electron.exe
 	echo Missing: %LOCALAPPDATA%\Programs\ETH II Wallet\ETH II Wallet.exe
-	echo Download latest wallet installer: https://github.com/OBitsPlease/ETH-II-Wallet/releases/latest
+	echo Download latest wallet installer: https://github.com/OBitsPlease/ETH-II-Wallet-V2/releases/latest
 	pause
 	exit /b 1
 )

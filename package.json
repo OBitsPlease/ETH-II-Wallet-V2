@@ -1,6 +1,6 @@
 {
   "name": "ethii-wallet",
-  "version": "2.1.18",
+  "version": "2.1.19",
   "description": "ETHII Wallet - ETH II Proof of Work",
   "main": "main.js",
   "scripts": {
@@ -66,7 +66,7 @@
           ]
         }
       ],
-      "icon": "assets/ethii-256.png",
+      "icon": "assets/ethii-512.png",
       "category": "public.app-category.finance"
     },
     "linux": {
@@ -78,7 +78,7 @@
           ]
         }
       ],
-      "icon": "assets/ethii-256.png",
+      "icon": "assets/ethii-512.png",
       "category": "Finance"
     },
     "nsis": {
