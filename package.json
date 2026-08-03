@@ -95,7 +95,7 @@
   "devDependencies": {
     "canvas": "^3.2.3",
     "electron": "28.3.3",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "ethers": "^6.16.0"
