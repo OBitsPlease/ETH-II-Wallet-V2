@@ -98,6 +98,6 @@
     "electron-builder": "^24.13.3"
   },
   "dependencies": {
-    "ethers": "^6.16.0"
+    "ethers": "^6.17.0"
   }
 }
