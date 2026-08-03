@@ -5,12 +5,14 @@ contextBridge.exposeInMainWorld('ethii', {
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close:    () => ipcRenderer.send('window-close'),
+  copySensitive: (args) => ipcRenderer.invoke('clipboard-write-sensitive', args),
 
   // Wallet operations
   createWallet:   ()       => ipcRenderer.invoke('wallet-create'),
   saveWallet:     (args)   => ipcRenderer.invoke('wallet-save', args),
   walletExists:   ()       => ipcRenderer.invoke('wallet-exists'),
   unlockWallet:   (args)   => ipcRenderer.invoke('wallet-unlock', args),
+  previewImport:  (args)   => ipcRenderer.invoke('wallet-preview-import', args),
   importWallet:   (args)   => ipcRenderer.invoke('wallet-import', args),
   exportKeystore: ()       => ipcRenderer.invoke('export-keystore'),
 

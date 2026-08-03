@@ -28,7 +28,9 @@ The installer bundles everything you need:
 2. Open the installer or application package for your platform
 3. Follow the on-screen installer steps
 4. Launch **ETH II Wallet** from your desktop shortcut
-5. The wallet will create a new address on first launch, or you can import an existing private key
+5. Unlock the existing encrypted wallet, create a new address, or import a private key or standard 12/24-word recovery phrase
+
+Installing an update does not migrate, delete, or replace the wallet stored in the operating system user-data directory.
 
 ---
 
@@ -56,6 +58,11 @@ View transactions and blocks at: **[https://ethii.net/explorer.html](https://eth
 
 - This wallet runs a **local ETH II node** in the background for full trustless verification
 - Your encrypted wallet file is stored in `%APPDATA%\ethii-wallet\ethii-wallet.json` on Windows, `~/Library/Application Support/ethii-wallet/ethii-wallet.json` on macOS, or `~/.config/ethii-wallet/ethii-wallet.json` on Linux — **back it up**
+- Before create/import can replace an existing ETH II wallet, the app requires confirmation and creates a byte-verified encrypted backup under `wallet-backups/` in the same user-data directory
+- Before opening an available update download, the app creates a byte-verified encrypted backup under `update-backups/`; a backup failure stops the update handoff
+- On startup and every six hours while open, the wallet checks only the official GitHub releases and alerts when a newer stable version exists; it never downloads or runs an installer automatically
+- Wallet backups remain encrypted with the password that belonged to that wallet at the time of backup
+- The wallet password encrypts the local file; the private key or recovery phrase is the independent recovery secret and should be stored offline
 - The wallet connects to bootstrap peers automatically — no manual configuration needed
 - CPU mining is **disabled** — ETH II is ASIC/GPU only (Ethash PoW)
 

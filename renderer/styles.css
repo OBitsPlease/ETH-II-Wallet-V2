@@ -269,7 +269,8 @@ html, body {
 }
 input[type="text"],
 input[type="password"],
-input[type="number"] {
+input[type="number"],
+textarea {
   width: 100%;
   background: var(--bg-input);
   border: 1px solid var(--border);
@@ -281,8 +282,19 @@ input[type="number"] {
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(98,126,234,0.15); }
+textarea { resize: vertical; min-height: 76px; }
+input:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(98,126,234,0.15); }
 input[readonly] { color: var(--text-sub); cursor: default; }
+.import-modes {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px; margin-bottom: 18px;
+}
+.import-mode {
+  background: transparent; border: 0; border-radius: 4px; color: var(--text-sub);
+  font: inherit; font-size: 12px; padding: 8px; cursor: pointer;
+}
+.import-mode.active { background: var(--blue); color: #fff; }
 .copy-row { display: flex; gap: 8px; align-items: center; }
 .copy-row.centered { justify-content: center; margin-top: 16px; }
 .copy-row input { flex: 1; }
@@ -294,6 +306,11 @@ input[readonly] { color: var(--text-sub); cursor: default; }
 }
 .warn-label { color: var(--amber); font-size: 11px; margin-left: 6px; font-weight: 400; text-transform: none; }
 .hint-label { color: var(--text-dim); font-size: 11px; margin-left: 6px; font-weight: 400; text-transform: none; }
+.backup-confirm {
+  display: flex; align-items: flex-start; gap: 9px; color: var(--text-sub);
+  font-size: 12px; line-height: 1.4; margin: 0 0 16px; cursor: pointer;
+}
+.backup-confirm input { margin-top: 2px; accent-color: var(--blue); }
 .hint { color: var(--text-sub); font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
 .success-banner {
   background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3);

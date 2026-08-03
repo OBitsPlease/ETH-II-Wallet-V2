@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none';" />
   <title>ETHII Wallet</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -61,7 +61,7 @@
         <p class="hint">Your wallet keys will be generated securely. Set a strong password to encrypt your wallet file.</p>
         <div class="form-group">
           <label>Wallet Password</label>
-          <input type="password" id="new-password" placeholder="Min 8 characters" />
+          <input type="password" id="new-password" placeholder="Min 12 characters" />
         </div>
         <div class="form-group">
           <label>Confirm Password</label>
@@ -90,7 +90,11 @@
           <label>Recovery Phrase <span class="warn-label">⚠ Write this down!</span></label>
           <div class="mnemonic-box" id="new-mnemonic-display"></div>
         </div>
-        <button class="btn btn-primary full-width" id="btn-go-dashboard">Open Wallet →</button>
+        <label class="backup-confirm">
+          <input type="checkbox" id="backup-confirmed" />
+          <span>I saved the recovery phrase or private key somewhere safe.</span>
+        </label>
+        <button class="btn btn-primary full-width" id="btn-go-dashboard" disabled>Open Wallet →</button>
       </div>
     </div>
   </div>
@@ -115,9 +119,13 @@
     <div class="panel narrow">
       <button class="btn-back" id="back-from-import">← Back</button>
       <h2 class="panel-title">Import Wallet</h2>
+      <div class="import-modes" role="group" aria-label="Recovery method">
+        <button class="import-mode active" type="button" data-import-mode="privateKey">Private Key</button>
+        <button class="import-mode" type="button" data-import-mode="mnemonic">Recovery Phrase</button>
+      </div>
       <div class="form-group">
-        <label>Private Key</label>
-        <input type="password" id="import-privkey" placeholder="0x..." />
+        <label id="import-secret-label">Private Key</label>
+        <textarea id="import-secret" rows="3" spellcheck="false" autocomplete="off" placeholder="0x..."></textarea>
       </div>
       <div class="form-group">
         <label>New Password</label>

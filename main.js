@@ -1,9 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const net = require('net');
-const { spawn } = require('child_process');
 const { ethers } = require('ethers');
+const { backupExistingWallet, replaceWalletFile } = require('./wallet-storage');
+const { compareVersions, normalizeVersion, selectLatestRelease } = require('./update-check');
 
 // Crash/close log — defined first so all handlers can use it
 const LOG_FILE = path.join(require('os').tmpdir(), 'ethii-wallet-crash.log');
@@ -23,6 +25,7 @@ if (!gotLock) {
 }
 
 let WALLET_FILE; // initialized after app is ready
+let WALLET_BACKUP_DIR; // initialized after app is ready
 let PENDING_TX_FILE; // initialized after app is ready
 let RPC_PORT = 8545; // default, may be updated by port scan
 let RPC_URL = 'http://127.0.0.1:8545';
@@ -45,90 +48,69 @@ const AUTO_NUDGE_INTERVAL_MS = 20000;
 const AUTO_NUDGE_LAG_THRESHOLD = 2;
 const LOCAL_FAILOVER_LAG = 8;
 const LOCAL_FAILOVER_NOPEER_LAG = 3;
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 let mainWindow;
 let provider;
 let lastAutoNudgeAt = 0;
-
-function normalizeVersion(v) {
-  return String(v || '').replace(/^wallet-v/, '').replace(/^v/, '').trim();
-}
-
-function compareVersions(a, b) {
-  const pa = normalizeVersion(a).split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = normalizeVersion(b).split('.').map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
-    const av = pa[i] || 0;
-    const bv = pb[i] || 0;
-    if (av > bv) return 1;
-    if (av < bv) return -1;
-  }
-  return 0;
-}
+let updateCheckInProgress = false;
+let deferredUpdateVersion = null;
 
 async function backupWalletBeforeUpdate() {
-  try {
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupDir = path.join(app.getPath('userData'), 'update-backups', `pre-update-${stamp}`);
-    fs.mkdirSync(backupDir, { recursive: true });
-
-    if (WALLET_FILE && fs.existsSync(WALLET_FILE)) {
-      fs.copyFileSync(WALLET_FILE, path.join(backupDir, 'ethii-wallet.json'));
-    }
-
-    const note = [
-      `created=${new Date().toISOString()}`,
-      `appVersion=${app.getVersion()}`,
-      'type=wallet pre-update backup',
-    ].join('\n');
-    fs.writeFileSync(path.join(backupDir, 'BACKUP-INFO.txt'), note, 'utf8');
-  } catch (e) {
-    fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] backup-before-update-failed: ${e.message}\n`);
-  }
+  if (!WALLET_FILE || !fs.existsSync(WALLET_FILE)) return null;
+  return backupExistingWallet(
+    WALLET_FILE,
+    path.join(app.getPath('userData'), 'update-backups'),
+    `pre-update-${app.getVersion()}`,
+  );
 }
 
 async function checkForWalletUpdate() {
-  if (process.platform !== 'win32') return;
+  if (updateCheckInProgress) return;
+  updateCheckInProgress = true;
   try {
     const res = await fetch(RELEASES_API_URL, { headers: HTTP_HEADERS, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return;
     const releases = await res.json();
-    const walletReleases = (Array.isArray(releases) ? releases : [])
-      .filter((r) => r && r.tag_name && /^v\d+\.\d+\.\d+$/.test(r.tag_name) && !r.draft && !r.prerelease)
-      .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
-    const latest = walletReleases[0];
+    const latest = selectLatestRelease(releases);
     if (!latest) return;
 
     const currentVersion = app.getVersion();
     const latestVersion = normalizeVersion(latest.tag_name);
     if (compareVersions(currentVersion, latestVersion) >= 0) return;
-
-    const installer = (latest.assets || []).find((a) => /\.exe$/i.test(a.name || ''));
-    if (!installer || !installer.browser_download_url) return;
+    if (deferredUpdateVersion === latestVersion) return;
 
     const prompt = await dialog.showMessageBox(mainWindow, {
-      type: 'warning',
-      buttons: ['Update now', 'Later'],
+      type: 'info',
+      buttons: ['Back up and open official download', 'Remind me next time'],
       defaultId: 0,
       cancelId: 1,
       title: 'Wallet Update Available',
-      message: `A new wallet version is available (v${latestVersion}).`,
-      detail: 'Before updating, verify you have your wallet password and seed phrase backed up. A dated backup will be created automatically before install.',
+      message: `ETH II Wallet v${latestVersion} is available.`,
+      detail: `Installed version: v${currentVersion}\nAvailable version: v${latestVersion}\n\nYour current encrypted wallet will be copied and byte-verified into a dated backup first. The wallet will then open only the official GitHub release page, where you can download the update and verify its SHA-256 checksum. Nothing is downloaded or installed automatically, and your wallet file is not migrated or deleted.`,
     });
-    if (prompt.response !== 0) return;
+    if (prompt.response !== 0) {
+      deferredUpdateVersion = latestVersion;
+      return;
+    }
 
-    await backupWalletBeforeUpdate();
-
-    const tmpExe = path.join(require('os').tmpdir(), `ethii-wallet-update-${latestVersion}.exe`);
-    const download = await fetch(installer.browser_download_url, { headers: HTTP_HEADERS, signal: AbortSignal.timeout(300000) });
-    if (!download.ok) throw new Error(`download failed: ${download.status}`);
-    const bytes = Buffer.from(await download.arrayBuffer());
-    fs.writeFileSync(tmpExe, bytes);
-
-    spawn(tmpExe, ['/S'], { detached: true, stdio: 'ignore' }).unref();
-    app.quit();
+    try {
+      await backupWalletBeforeUpdate();
+      await shell.openExternal(latest.html_url);
+    } catch (e) {
+      fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] wallet-update-backup-failed: ${e.message}\n`);
+      await dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        buttons: ['OK'],
+        title: 'Update Backup Failed',
+        message: 'The official download page was not opened because your wallet backup could not be verified.',
+        detail: 'Your existing wallet was not changed. Close other programs that may be using the wallet file, check available disk space, and try again the next time the wallet starts.',
+      });
+    }
   } catch (e) {
     fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] wallet-update-check-failed: ${e.message}\n`);
+  } finally {
+    updateCheckInProgress = false;
   }
 }
 
@@ -204,8 +186,13 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
     icon: fs.existsSync(path.join(__dirname, 'assets', 'icon.png')) ? path.join(__dirname, 'assets', 'icon.png') : undefined,
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== mainWindow.webContents.getURL()) event.preventDefault();
   });
   mainWindow.loadFile('renderer/index.html');
   // Log renderer crashes
@@ -260,6 +247,7 @@ app.on('second-instance', () => {
 
 app.whenReady().then(async () => {
   WALLET_FILE = path.join(app.getPath('userData'), 'ethii-wallet.json');
+  WALLET_BACKUP_DIR = path.join(app.getPath('userData'), 'wallet-backups');
   PENDING_TX_FILE = path.join(app.getPath('userData'), 'pending-tx-history.json');
   // Find the port where the ETHII node RPC is listening (default 8545)
   RPC_PORT = await findNodePort(8545);
@@ -272,6 +260,9 @@ app.whenReady().then(async () => {
   setTimeout(() => {
     checkForWalletUpdate().catch(() => {});
   }, 4000);
+  setInterval(() => {
+    checkForWalletUpdate().catch(() => {});
+  }, UPDATE_CHECK_INTERVAL_MS);
   // Fire an immediate sync nudge shortly after startup so the local node
   // connects to the VPS peer right away rather than waiting for the UI timer.
   setTimeout(() => {
@@ -325,6 +316,18 @@ ipcMain.on('window-close', () => {
   mainWindow.close();
 });
 
+ipcMain.handle('clipboard-write-sensitive', async (_, { text }) => {
+  const value = String(text || '');
+  if (!value) return { success: false };
+  clipboard.writeText(value);
+  const expectedHash = crypto.createHash('sha256').update(value).digest('hex');
+  setTimeout(() => {
+    const currentHash = crypto.createHash('sha256').update(clipboard.readText()).digest('hex');
+    if (currentHash === expectedHash) clipboard.clear();
+  }, 60000);
+  return { success: true };
+});
+
 // Create new wallet
 ipcMain.handle('wallet-create', async () => {
   const wallet = ethers.Wallet.createRandom();
@@ -332,13 +335,15 @@ ipcMain.handle('wallet-create', async () => {
 });
 
 // Save encrypted wallet to disk
-ipcMain.handle('wallet-save', async (_, { privateKey, password }) => {
+ipcMain.handle('wallet-save', async (_, { privateKey, password, replaceExisting = false }) => {
   try {
-    fs.mkdirSync(path.dirname(WALLET_FILE), { recursive: true });
+    if (fs.existsSync(WALLET_FILE) && !replaceExisting) {
+      throw new Error('A wallet already exists. Replacement requires explicit confirmation.');
+    }
     const wallet = new ethers.Wallet(privateKey);
     const encrypted = await wallet.encrypt(password);
-    fs.writeFileSync(WALLET_FILE, encrypted, 'utf8');
-    return { success: true };
+    const { backupFile } = replaceWalletFile(WALLET_FILE, encrypted, WALLET_BACKUP_DIR, 'before-create');
+    return { success: true, address: wallet.address, backedUp: Boolean(backupFile) };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -349,24 +354,47 @@ ipcMain.handle('wallet-exists', async () => {
   return fs.existsSync(WALLET_FILE);
 });
 
+function walletFromImport({ type, secret }) {
+  if (type === 'mnemonic') {
+    const phrase = String(secret || '').trim().replace(/\s+/g, ' ');
+    if (!ethers.Mnemonic.isValidMnemonic(phrase)) {
+      throw new Error('Invalid BIP39 recovery phrase or checksum.');
+    }
+    return ethers.Wallet.fromPhrase(phrase);
+  }
+  return new ethers.Wallet(String(secret || '').trim());
+}
+
+ipcMain.handle('wallet-preview-import', async (_, args) => {
+  try {
+    const wallet = walletFromImport(args || {});
+    return { success: true, address: wallet.address };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // Unlock saved wallet
 ipcMain.handle('wallet-unlock', async (_, { password }) => {
   try {
     const json = fs.readFileSync(WALLET_FILE, 'utf8');
     const wallet = await ethers.Wallet.fromEncryptedJson(json, password);
-    return { success: true, address: wallet.address, privateKey: wallet.privateKey };
+    return { success: true, address: wallet.address };
   } catch (e) {
     return { success: false, error: 'Invalid password or corrupted wallet file.' };
   }
 });
 
-// Import wallet from private key
-ipcMain.handle('wallet-import', async (_, { privateKey, password }) => {
+// Import wallet from a private key or BIP39 recovery phrase.
+ipcMain.handle('wallet-import', async (_, { type, secret, password, replaceExisting = false }) => {
   try {
-    const wallet = new ethers.Wallet(privateKey);
+    if (fs.existsSync(WALLET_FILE) && !replaceExisting) {
+      throw new Error('A wallet already exists. Replacement requires explicit confirmation.');
+    }
+    const wallet = walletFromImport({ type, secret });
     const encrypted = await wallet.encrypt(password);
-    fs.writeFileSync(WALLET_FILE, encrypted, 'utf8');
-    return { success: true, address: wallet.address };
+    const { backupFile } = replaceWalletFile(WALLET_FILE, encrypted, WALLET_BACKUP_DIR, 'before-import');
+    return { success: true, address: wallet.address, backedUp: Boolean(backupFile) };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -388,14 +416,23 @@ ipcMain.handle('get-balance', async (_, { address }) => {
 });
 
 // Send transaction
-ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
+ipcMain.handle('send-tx', async (_, { password, to, amount, gasPrice }) => {
   try {
     if (!provider) tryConnectProvider();
     if (!provider) throw new Error('RPC unavailable');
 
+    if (!password) throw new Error('Wallet password is required.');
     if (!to || !ethers.isAddress(to)) throw new Error('Invalid recipient address.');
     const parsedAmount = parseFloat(amount);
     if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) throw new Error('Invalid amount. Must be greater than 0.');
+
+    const encryptedWallet = fs.readFileSync(WALLET_FILE, 'utf8');
+    let wallet;
+    try {
+      wallet = await ethers.Wallet.fromEncryptedJson(encryptedWallet, password);
+    } catch {
+      throw new Error('Wrong wallet password.');
+    }
 
     let sendProvider = null;
     for (const url of SEND_RPC_CANDIDATES) {
@@ -415,9 +452,9 @@ ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
     const chainId = typeof chainIdHex === 'string' && chainIdHex.startsWith('0x')
       ? Number.parseInt(chainIdHex, 16)
       : Number.parseInt(String(chainIdHex), 10);
-    const safeChainId = Number.isFinite(chainId) && chainId > 0 ? chainId : CHAIN_ID_FALLBACK;
-
-    const wallet = new ethers.Wallet(privateKey);
+    if (chainId !== CHAIN_ID_FALLBACK) {
+      throw new Error(`Safety stop: RPC returned chain ID ${chainId}; expected ${CHAIN_ID_FALLBACK}.`);
+    }
     const from = await wallet.getAddress();
     const [latestNonceHex, pendingNonceHex, pendingBlock] = await Promise.all([
       sendProvider.send('eth_getTransactionCount', [from, 'latest']),
@@ -464,7 +501,7 @@ ipcMain.handle('send-tx', async (_, { privateKey, to, amount, gasPrice }) => {
       gasPrice: ethers.parseUnits(gasPrice || '0.5', 'gwei'),
       gasLimit: 21000n, // plain transfer — skip eth_estimateGas (unsupported on this RPC)
       nonce,
-      chainId: safeChainId,
+      chainId: CHAIN_ID_FALLBACK,
     });
     const txHash = await sendProvider.send('eth_sendRawTransaction', [signed]);
     const pending = readPendingTxs();

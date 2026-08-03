@@ -3,12 +3,14 @@
 const PUBLIC_RPC_URL = 'https://ethii.net/rpc';
 
 let currentAddress = null;
-let currentPrivateKey = null;
 let txHistory = [];
 let txFilter = 'all';
 let txSearch = '';
 let txPage = 0;
+let importMode = 'privateKey';
 const TX_PAGE_SIZE = 15;
+const AUTO_LOCK_MS = 10 * 60 * 1000;
+let autoLockTimer = null;
 
 // Update MetaMask RPC chip: show public RPC endpoint.
 (function initMetaMaskRpc() {
@@ -17,7 +19,7 @@ const TX_PAGE_SIZE = 15;
   if (!el) return;
   if (PUBLIC_RPC_URL) {
     el.textContent = PUBLIC_RPC_URL;
-    if (note) note.innerHTML = '<strong>Recommended:</strong> Use the URL above to connect MetaMask from any device. <strong>Local node (optional):</strong> use <code>http://localhost:8545</code> only on the same machine.';
+    if (note) note.textContent = 'Recommended: Use the URL above to connect MetaMask from any device. Local node (optional): use http://localhost:8545 only on the same machine.';
   }
 })();
 
@@ -43,6 +45,38 @@ function showToast(msg, duration = 2500) {
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
 }
+
+function clearCreationSecrets() {
+  document.getElementById('new-privkey-display').value = '';
+  document.getElementById('new-mnemonic-display').textContent = '';
+  document.getElementById('new-password').value = '';
+  document.getElementById('new-password-confirm').value = '';
+  document.getElementById('backup-confirmed').checked = false;
+  document.getElementById('btn-go-dashboard').disabled = true;
+}
+
+function lockWallet(message = 'Wallet locked.') {
+  currentAddress = null;
+  document.getElementById('unlock-password').value = '';
+  document.getElementById('send-password').value = '';
+  document.getElementById('import-secret').value = '';
+  document.getElementById('import-password').value = '';
+  clearCreationSecrets();
+  if (autoLockTimer) clearTimeout(autoLockTimer);
+  autoLockTimer = null;
+  showScreen('screen-setup');
+  showToast(message);
+}
+
+function resetAutoLock() {
+  if (!currentAddress) return;
+  if (autoLockTimer) clearTimeout(autoLockTimer);
+  autoLockTimer = setTimeout(() => lockWallet('Wallet locked after 10 minutes of inactivity.'), AUTO_LOCK_MS);
+}
+
+['pointerdown', 'keydown'].forEach((eventName) => {
+  document.addEventListener(eventName, resetAutoLock, { passive: true });
+});
 
 function showError(elId, msg) {
   const el = document.getElementById(elId);
@@ -122,24 +156,40 @@ function renderTxHistory() {
   if (nextBtn) nextBtn.disabled = txPage >= totalPages - 1;
 
   if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="mono small">${txSearch ? 'No transactions match your search.' : 'No transactions found.'}</td></tr>`;
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.className = 'mono small';
+    cell.textContent = txSearch ? 'No transactions match your search.' : 'No transactions found.';
+    row.appendChild(cell);
+    tbody.replaceChildren(row);
     return;
   }
 
-  tbody.innerHTML = items.map((tx) => {
+  const rows = items.map((tx) => {
     const counterparty = tx.direction === 'in' ? tx.from : tx.to;
     const dirClass = tx.direction === 'in' ? 'tx-dir-in' : 'tx-dir-out';
     const dirText = tx.direction === 'in' ? '▼ IN' : '▲ OUT';
     const amt = parseFloat(tx.value || '0');
     const amtDisplay = Number.isFinite(amt) ? amt.toFixed(4) : '—';
-    return `<tr>
-      <td class="${dirClass}">${dirText}</td>
-      <td>${amtDisplay} ETHII</td>
-      <td class="mono" title="${counterparty || ''}">${truncateAddress(counterparty || '—')}</td>
-      <td>${Number.isFinite(tx.blockNumber) ? tx.blockNumber : '—'}</td>
-      <td class="mono" title="${tx.hash || ''}">${shortHash(tx.hash)}</td>
-    </tr>`;
-  }).join('');
+    const row = document.createElement('tr');
+    const values = [
+      { text: dirText, className: dirClass },
+      { text: `${amtDisplay} ETHII` },
+      { text: truncateAddress(counterparty || '—'), className: 'mono', title: counterparty || '' },
+      { text: Number.isFinite(tx.blockNumber) ? String(tx.blockNumber) : '—' },
+      { text: shortHash(tx.hash), className: 'mono', title: tx.hash || '' },
+    ];
+    values.forEach(({ text, className, title }) => {
+      const cell = document.createElement('td');
+      cell.textContent = text;
+      if (className) cell.className = className;
+      if (title) cell.title = title;
+      row.appendChild(cell);
+    });
+    return row;
+  });
+  tbody.replaceChildren(...rows);
 }
 
 async function refreshTxHistory() {
@@ -196,6 +246,7 @@ document.getElementById('card-new').querySelector('button').addEventListener('cl
   document.getElementById('new-wallet-step2').classList.add('hidden');
   document.getElementById('new-password').value = '';
   document.getElementById('new-password-confirm').value = '';
+  clearCreationSecrets();
   showScreen('screen-new-wallet');
 });
 document.getElementById('card-unlock').querySelector('button').addEventListener('click', async () => {
@@ -205,13 +256,23 @@ document.getElementById('card-unlock').querySelector('button').addEventListener(
 });
 document.getElementById('card-import').querySelector('button').addEventListener('click', () => showScreen('screen-import'));
 
+document.querySelectorAll('.import-mode').forEach((button) => {
+  button.addEventListener('click', () => {
+    importMode = button.dataset.importMode;
+    document.querySelectorAll('.import-mode').forEach((item) => item.classList.toggle('active', item === button));
+    document.getElementById('import-secret-label').textContent = importMode === 'mnemonic' ? '12 or 24 Word Recovery Phrase' : 'Private Key';
+    const input = document.getElementById('import-secret');
+    input.value = '';
+    input.placeholder = importMode === 'mnemonic' ? 'Enter words in their original order' : '0x...';
+  });
+});
+
 // ---- Back buttons ----
 document.getElementById('back-from-new').addEventListener('click', () => {
   // Reset create-wallet screen so step1 (password) always shows on re-entry
   document.getElementById('new-wallet-step1').classList.remove('hidden');
   document.getElementById('new-wallet-step2').classList.add('hidden');
-  document.getElementById('new-password').value = '';
-  document.getElementById('new-password-confirm').value = '';
+  clearCreationSecrets();
   showScreen('screen-setup');
 });
 document.getElementById('back-from-unlock').addEventListener('click', () => showScreen('screen-setup'));
@@ -221,12 +282,15 @@ document.getElementById('back-from-import').addEventListener('click', () => show
 document.getElementById('btn-generate').addEventListener('click', async () => {
   const pw = document.getElementById('new-password').value;
   const pw2 = document.getElementById('new-password-confirm').value;
-  if (pw.length < 8) { showToast('Password must be at least 8 characters.'); return; }
+  if (pw.length < 12) { showToast('New wallet passwords must be at least 12 characters.'); return; }
   if (pw !== pw2)    { showToast('Passwords do not match.'); return; }
+
+  const replacing = await window.ethii.walletExists();
+  if (replacing && !confirm('An ETH II wallet already exists on this PC. A verified backup will be created before replacement. Continue only if you have saved the existing wallet password and private key.')) return;
 
   document.getElementById('btn-generate').textContent = 'Generating...';
   const wallet = await window.ethii.createWallet();
-  const saved  = await window.ethii.saveWallet({ privateKey: wallet.privateKey, password: pw });
+  const saved  = await window.ethii.saveWallet({ privateKey: wallet.privateKey, password: pw, replaceExisting: replacing });
   document.getElementById('btn-generate').textContent = 'Generate Wallet';
 
   if (!saved.success) { showToast('Error saving wallet: ' + saved.error); return; }
@@ -236,13 +300,18 @@ document.getElementById('btn-generate').addEventListener('click', async () => {
   document.getElementById('new-mnemonic-display').textContent = wallet.mnemonic || '(no mnemonic — imported key)';
 
   currentAddress   = wallet.address;
-  currentPrivateKey = wallet.privateKey;
 
   document.getElementById('new-wallet-step1').classList.add('hidden');
   document.getElementById('new-wallet-step2').classList.remove('hidden');
 });
 
-document.getElementById('btn-go-dashboard').addEventListener('click', () => openDashboard());
+document.getElementById('backup-confirmed').addEventListener('change', (event) => {
+  document.getElementById('btn-go-dashboard').disabled = !event.target.checked;
+});
+document.getElementById('btn-go-dashboard').addEventListener('click', () => {
+  clearCreationSecrets();
+  openDashboard();
+});
 
 // ---- Unlock wallet ----
 document.getElementById('btn-unlock').addEventListener('click', async () => {
@@ -253,25 +322,28 @@ document.getElementById('btn-unlock').addEventListener('click', async () => {
   document.getElementById('btn-unlock').textContent = 'Unlock →';
   if (!result.success) { showError('unlock-error', result.error); return; }
   currentAddress    = result.address;
-  currentPrivateKey = result.privateKey;
   openDashboard();
 });
 
 // ---- Import wallet ----
 document.getElementById('btn-import').addEventListener('click', async () => {
-  const pk = document.getElementById('import-privkey').value.trim();
+  const secret = document.getElementById('import-secret').value.trim();
   const pw = document.getElementById('import-password').value;
   hideError('import-error');
-  if (!pk) { showError('import-error', 'Please enter a private key.'); return; }
-  if (pw.length < 8) { showError('import-error', 'Password must be at least 8 characters.'); return; }
+  if (!secret) { showError('import-error', `Please enter a ${importMode === 'mnemonic' ? 'recovery phrase' : 'private key'}.`); return; }
+  if (pw.length < 12) { showError('import-error', 'New wallet passwords must be at least 12 characters.'); return; }
+  const preview = await window.ethii.previewImport({ type: importMode, secret });
+  if (!preview.success) { showError('import-error', preview.error); return; }
+  if (!confirm(`This recovery secret produces address:\n\n${preview.address}\n\nConfirm this is the wallet you intend to import.`)) return;
+  const replacing = await window.ethii.walletExists();
+  if (replacing && !confirm('An ETH II wallet already exists on this PC. A verified backup will be created before replacement. Continue only if you have saved the existing wallet password and private key.')) return;
   document.getElementById('btn-import').textContent = 'Importing...';
-  const result = await window.ethii.importWallet({ privateKey: pk, password: pw });
+  const result = await window.ethii.importWallet({ type: importMode, secret, password: pw, replaceExisting: replacing });
   document.getElementById('btn-import').textContent = 'Import Wallet';
   if (!result.success) { showError('import-error', result.error); return; }
+  document.getElementById('import-secret').value = '';
+  document.getElementById('import-password').value = '';
   currentAddress    = result.address;
-  // Unlock immediately to get privateKey in memory
-  const unlocked = await window.ethii.unlockWallet({ password: pw });
-  currentPrivateKey = unlocked.privateKey;
   openDashboard();
 });
 
@@ -285,6 +357,8 @@ function openDashboard() {
   document.querySelector('.code-block').textContent =
     `ethii.exe --datadir ".\\data" --config ".\\data\\geth\\config.toml" --networkid 20482 --syncmode full --gcmode archive --state.scheme hash --bootnodes "enode://b096bfae7d5e9a7cc985e68726280b75b0a0ef80ce419db5ed5152e9bee7bf83d35ae8b13b34879a0bf36d73a9a674bb61b02f3777745ed770e3150a39c7de5b@91.99.231.217:30303" --http --http.addr 127.0.0.1 --http.port 8545 --http.api "eth,net,web3,miner,ethash,txpool,admin,debug" --http.corsdomain "*" --http.vhosts "*" --miner.pending.feeRecipient ${currentAddress}`;
   showScreen('screen-dashboard');
+  document.getElementById('unlock-password').value = '';
+  resetAutoLock();
   showView('view-wallet');
   refreshBalance({ showSpinner: true });
   refreshTxHistory();
@@ -333,24 +407,16 @@ document.getElementById('btn-send').addEventListener('click', async () => {
   if (!to || !amount) { showStatus('send-status', 'Please fill in all fields.', 'error'); return; }
   if (!password) { showStatus('send-status', 'Please enter your wallet password.', 'error'); return; }
 
-  // Unlock private key using password
   showStatus('send-status', 'Signing transaction…', 'loading');
   document.getElementById('btn-send').textContent = 'Sending…';
 
-  const unlocked = await window.ethii.unlockWallet({ password });
-  if (!unlocked.success) {
-    showStatus('send-status', 'Wrong password.', 'error');
-    document.getElementById('btn-send').textContent = 'Send Transaction →';
-    return;
-  }
-
-  const result = await window.ethii.sendTx({ privateKey: unlocked.privateKey, to, amount, gasPrice: gasPrice || '0.5' });
+  const result = await window.ethii.sendTx({ password, to, amount, gasPrice: gasPrice || '0.5' });
+  document.getElementById('send-password').value = '';
   document.getElementById('btn-send').textContent = 'Send Transaction →';
   if (result.success) {
     showStatus('send-status', `✔ Broadcasted! TX: ${result.hash}`, 'success');
     document.getElementById('send-to').value = '';
     document.getElementById('send-amount').value = '';
-    document.getElementById('send-password').value = '';
     setTimeout(refreshBalance, 2000);
     setTimeout(refreshTxHistory, 3000);
   } else {
@@ -517,7 +583,12 @@ document.getElementById('btn-refresh-history')?.addEventListener('click', refres
 document.querySelectorAll('.btn-copy').forEach(btn => {
   btn.addEventListener('click', () => {
     const target = document.getElementById(btn.dataset.target);
-    if (target) copyToClipboard(target.value);
+    if (!target) return;
+    if (btn.dataset.target === 'new-privkey-display') {
+      window.ethii.copySensitive({ text: target.value }).then(() => showToast('Copied; clipboard clears in 60 seconds.'));
+    } else {
+      copyToClipboard(target.value);
+    }
   });
 });
 
@@ -537,11 +608,7 @@ document.querySelectorAll('.btn-reveal').forEach(btn => {
 
 // ---- Lock wallet ----
 document.getElementById('btn-lock').addEventListener('click', () => {
-  currentAddress    = null;
-  currentPrivateKey = null;
-  document.getElementById('unlock-password').value = '';
-  showScreen('screen-setup');
-  showToast('Wallet locked.');
+  lockWallet();
 });
 
 // ---- Export keystore ----

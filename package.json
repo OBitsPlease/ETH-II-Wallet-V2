@@ -1,10 +1,11 @@
 {
   "name": "ethii-wallet",
-  "version": "2.1.19",
+  "version": "2.1.20",
   "description": "ETHII Wallet - ETH II Proof of Work",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test test/*.test.js",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -28,10 +29,11 @@
     "files": [
       "main.js",
       "preload.js",
+      "update-check.js",
+      "wallet-storage.js",
       "renderer/**/*",
       "assets/**/*",
       "node_modules/**/*",
-      "!node_modules/canvas/**/*",
       "!node_modules/electron/**/*"
     ],
     "extraResources": [
@@ -53,8 +55,7 @@
           ]
         }
       ],
-      "icon": "assets/ethii-256.png",
-      "publisherName": "BitsPleaseYT"
+      "icon": "assets/ethii-256.png"
     },
     "mac": {
       "target": [
@@ -93,11 +94,10 @@
     }
   },
   "devDependencies": {
-    "canvas": "^3.2.3",
-    "electron": "28.3.3",
-    "electron-builder": "^24.13.3"
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "ethers": "^6.16.0"
+    "ethers": "^6.17.0"
   }
 }
